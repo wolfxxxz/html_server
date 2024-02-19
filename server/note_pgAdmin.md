@@ -1,0 +1,13 @@
+select * from libraries;
+select count(*) from libraries;
+select * from phrases;
+select * from users;
+select count(*) from users;
+select count(*) from words;
+select * from words order by updated_at asc;
+select * from user_learn;
+select count(*) from user_learn;
+select * from user_learned;
+select count(*) from user_learned;
+select * from user_words;
+select count(*) from user_words;

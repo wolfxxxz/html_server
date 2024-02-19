@@ -1,0 +1,28 @@
+version: '3'
+
+services:
+  postgres_server:
+    image: postgres:alpine3.18
+    container_name: translator-postgres 
+    ports:
+      - 5437:5432
+#    volumes:
+#      - ${HOME}/pgdata/:/var/lib/postgresql/data  
+    environment:
+      POSTGRES_PASSWORD: 1 
+
+  server_server:
+    build:
+      dockerfile: Dockerfile
+    depends_on:
+      - postgres_server
+    env_file:
+      - .env
+    container_name: server-server
+    network_mode: host
+    environment:
+      - TZ=Europe/Kiev
+#    restart: unless-stopped
+# 5437 внешний порт 
+# 5432 внутри контейнера
+       

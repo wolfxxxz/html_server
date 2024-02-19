@@ -1,0 +1,38 @@
+[
+   {
+      "CreatedAt": "2023-12-28T10:06:42.619062+02:00",
+      "UpdatedAt": "2023-12-28T10:06:42.619062+02:00",
+      "DeletedAt": null,
+      "ID": 2733,
+      "english": "study",
+      "russian": "учить, изучать",
+      "theme": "",
+      "part_of_speech": "Verb",
+      "library_phrases": null,
+      "exceptions": ""
+   },
+   {
+      "CreatedAt": "2023-12-28T10:06:38.734786+02:00",
+      "UpdatedAt": "2023-12-28T10:06:38.734786+02:00",
+      "DeletedAt": null,
+      "ID": 9,
+      "english": "Absence",
+      "russian": "Отсутствие, недостаток, неявка",
+      "theme": "",
+      "part_of_speech": "Noun",
+      "library_phrases": null,
+      "exceptions": ""
+   },
+   {
+      "CreatedAt": "2023-12-28T10:06:38.7366+02:00",
+      "UpdatedAt": "2023-12-28T10:06:38.7366+02:00",
+      "DeletedAt": null,
+      "ID": 10,
+      "english": "Absent",
+      "russian": "Отсутствующий",
+      "theme": "",
+      "part_of_speech": "Adjective",
+      "library_phrases": null,
+      "exceptions": ""
+   }
+]
