@@ -11,4 +11,6 @@ const (
 	repoUsers   = "REPO_USERS_ERR"
 	handlers    = "HANDLERS_ERR"
 	services    = "SERVICES_ERR"
+	mapers      = "MAPPERS_ERR"
+	server      = "SERVER_ERR"
 )

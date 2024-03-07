@@ -8,7 +8,7 @@ import (
 type User struct {
 	gorm.Model
 	ID       *uuid.UUID `json:"id" gorm:"primaryKey"`
-	Email    string     `json:"user_email"`
+	Email    string     `json:"user_email" gorm:"unique"`
 	Name     string     `json:"first_name"`
 	LastName string     `json:"last_name"`
 	Password string     `json:"password"`
@@ -25,4 +25,5 @@ type Word struct {
 	Russian       string     `json:"russian"`
 	Theme         string     `json:"theme"`
 	PartsOfSpeech string     `json:"part_of_speech"`
+	Right         bool
 }

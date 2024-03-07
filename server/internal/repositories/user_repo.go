@@ -4,6 +4,7 @@ import (
 	"context"
 	"server/internal/apperrors"
 	"server/internal/domain/models"
+	"server/internal/domain/requests"
 
 	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
@@ -12,6 +13,8 @@ import (
 
 type RepoUsers interface {
 	UpdateUser(ctx context.Context, user *models.User) error
+	UpdateUserPasswordById(ctx context.Context, userID, newPass string) error
+	UpdateUserById(ctx context.Context, userReq *requests.CreateUserRequest) error
 	CreateUser(ctx context.Context, user *models.User) (string, error)
 	GetWordsByIDAndLimit(ctx context.Context, id *uuid.UUID, limit int) ([]*models.Word, error)
 	GetLearnByIDAndLimit(ctx context.Context, id *uuid.UUID, limit int) ([]*models.Word, error)
@@ -20,6 +23,8 @@ type RepoUsers interface {
 	MoveWordToLearned(ctx context.Context, user *models.User, word *models.Word) error
 	AddWordToLearn(ctx context.Context, user *models.User, word *models.Word) error
 	DeleteLearnWordFromUserByWordID(ctx context.Context, user *models.User, word *models.Word) error
+	GetWordsByUserIdAndLimitAndTopic(ctx context.Context, id *uuid.UUID, limit int, topic string) ([]*models.Word, error)
+	GetAllUsers(ctx context.Context) ([]*models.User, error)
 }
 
 type repoUsers struct {
@@ -137,37 +142,80 @@ func (usr *repoUsers) UpdateUser(ctx context.Context, user *models.User) error {
 	return tx.Commit().Error
 }
 
-func (repo *repoUsers) CreateUser(ctx context.Context, user *models.User) (string, error) {
+func (usr *repoUsers) UpdateUserById(ctx context.Context, userReq *requests.CreateUserRequest) error {
+	result := usr.db.Model(&models.User{}).Where("id = ?", userReq.Id).
+		Updates(map[string]interface{}{
+			"email":     userReq.Email,
+			"name":      userReq.Name,
+			"last_name": userReq.LastName,
+			"role":      userReq.Role,
+		})
+	if result.Error != nil {
+		appErr := apperrors.UpdateUserByIdErr.AppendMessage(result.Error)
+		usr.log.Error(appErr)
+		return appErr
+	}
+
+	if result.RowsAffected == 0 {
+		appErr := &apperrors.UpdateWordRowAffectedErr
+		usr.log.Info(appErr)
+		return appErr
+	}
+
+	return nil
+}
+
+func (usr *repoUsers) UpdateUserPasswordById(ctx context.Context, userID, newPass string) error {
+	result := usr.db.Model(&models.User{}).Where("id = ?", userID).
+		Updates(map[string]interface{}{
+			"password": newPass,
+		})
+	if result.Error != nil {
+		appErr := apperrors.UpdateUserByIdErr.AppendMessage(result.Error)
+		usr.log.Error(appErr)
+		return appErr
+	}
+
+	if result.RowsAffected == 0 {
+		appErr := &apperrors.UpdateWordRowAffectedErr
+		usr.log.Info(appErr)
+		return appErr
+	}
+
+	return nil
+}
+
+func (usr *repoUsers) CreateUser(ctx context.Context, user *models.User) (string, error) {
 	if user == nil {
 		appErr := apperrors.CreateUserErr.AppendMessage("user is nil")
-		repo.log.Error(appErr)
+		usr.log.Error(appErr)
 		return "", appErr
 	}
 
-	tx := repo.db.WithContext(ctx)
+	tx := usr.db.WithContext(ctx)
 	if tx.Error != nil {
 		appErr := apperrors.CreateUserErr.AppendMessage(tx.Error)
-		repo.log.Error(appErr)
+		usr.log.Error(appErr)
 		return "", appErr
 	}
 
 	result := tx.Create(user)
 	if result.Error != nil {
 		appErr := apperrors.CreateUserErr.AppendMessage(result.Error)
-		repo.log.Error(appErr)
+		usr.log.Error(appErr)
 		return "", appErr
 	}
 
 	if result.RowsAffected == 0 {
 		appErr := apperrors.CreateUserErr.AppendMessage("no rows affected")
-		repo.log.Error(appErr)
+		usr.log.Error(appErr)
 		return "", appErr
 	}
 
 	createdUser := &models.User{}
 	if err := tx.First(createdUser, "id = ?", user.ID).Error; err != nil {
 		appErr := apperrors.CreateUserErr.AppendMessage(err)
-		repo.log.Error(appErr)
+		usr.log.Error(appErr)
 		return "", appErr
 	}
 
@@ -185,9 +233,28 @@ func (usr *repoUsers) GetWordsByIDAndLimit(ctx context.Context, id *uuid.UUID, l
 		return nil, appErr
 	}
 
-	usr.log.Info(user)
 	usr.log.Info(len(user.Words))
 	return user.Words, nil
+}
+
+func (usr *repoUsers) GetWordsByUserIdAndLimitAndTopic(ctx context.Context, id *uuid.UUID, limit int, topic string) ([]*models.Word, error) {
+	words := []*models.Word{}
+	err := usr.db.
+		Unscoped().
+		Table("user_words").
+		Select("id, english, russian, theme, parts_of_speech", "created_at", "updated_at").
+		Joins("JOIN words ON words.id = user_words.word_id").
+		Where("user_words.user_id = ? AND words.theme = ?", id, topic). //"Irregular verb"
+		Limit(limit).
+		Find(&words).Error
+
+	if err != nil {
+		appErr := apperrors.GetWordsByUserIdAndLimitAndTopicErr.AppendMessage(err)
+		usr.log.Error(appErr)
+		return nil, appErr
+	}
+
+	return words, nil
 }
 
 func (usr *repoUsers) GetLearnByIDAndLimit(ctx context.Context, id *uuid.UUID, limit int) ([]*models.Word, error) {
@@ -209,16 +276,28 @@ func (usr *repoUsers) GetLearnByIDAndLimit(ctx context.Context, id *uuid.UUID, l
 func (usr *repoUsers) DeleteLearnWordFromUserByWordID(ctx context.Context, user *models.User, word *models.Word) error {
 	association := usr.db.Model(user).Association("Learn")
 	if association.Error != nil {
-		appErr := apperrors.DeleteLearnWordFromUserByWordErr.AppendMessage(association.Error)
+		appErr := apperrors.DeleteLearnWordFromUserByWordIDErr.AppendMessage(association.Error)
 		usr.log.Error(appErr)
 		return appErr
 	}
 
 	if err := association.Delete(word); err != nil {
-		appErr := apperrors.DeleteLearnWordFromUserByWordErr.AppendMessage(err)
+		appErr := apperrors.DeleteLearnWordFromUserByWordIDErr.AppendMessage(err)
 		usr.log.Error(appErr)
 		return appErr
 	}
 
 	return nil
+}
+
+func (usr *repoUsers) GetAllUsers(ctx context.Context) ([]*models.User, error) {
+	var users []*models.User
+	err := usr.db.Find(&users).Error
+	if err != nil {
+		appErr := apperrors.GetAllUsersErr.AppendMessage(err)
+		usr.log.Error(appErr)
+		return nil, appErr
+	}
+
+	return users, nil
 }

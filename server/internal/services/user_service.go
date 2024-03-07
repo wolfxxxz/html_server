@@ -9,6 +9,7 @@ import (
 	"server/internal/domain/responses"
 	"server/internal/repositories"
 	"strconv"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
@@ -55,9 +56,46 @@ func (us *UserService) CreateUser(ctx context.Context, userReq *requests.CreateU
 
 	words := mappers.MapLibraryToWords(library)
 	user.Words = words
-	us.repoUser.UpdateUser(ctx, user)
+	err = us.repoUser.UpdateUser(ctx, user)
+	if err != nil {
+		return nil, err
+	}
+
 	respCreateUser := &responses.CreateUserResponse{UserId: user.ID.String()}
 	return respCreateUser, nil
+}
+
+func (us *UserService) UpdateUserById(ctx context.Context, user *models.User, userReq *requests.CreateUserRequest) error {
+	if !checkPasswordHash(userReq.Password, user.Password) {
+		appErr := apperrors.UpdateUserByIdErr.AppendMessage("WRONG Password")
+		us.log.Error(appErr)
+		return appErr
+	}
+
+	userReq.Id = user.ID.String()
+	return us.repoUser.UpdateUserById(ctx, userReq)
+}
+
+func (us *UserService) UpdateUserPasswordById(ctx context.Context, user *models.User, oldPass, newPass, newPassSec string) error {
+	if !checkPasswordHash(oldPass, user.Password) {
+		appErr := apperrors.UpdateUserPasswordByIdErr.AppendMessage("WRONG Password")
+		us.log.Error(appErr)
+		return appErr
+	}
+
+	if !strings.EqualFold(newPass, newPassSec) {
+		appErr := apperrors.UpdateUserPasswordByIdErr.AppendMessage("WRONG New Password")
+		us.log.Error(appErr)
+		return appErr
+	}
+
+	hashPass, err := hashPassword(newPass)
+	if err != nil {
+		us.log.Error(err)
+		return err
+	}
+
+	return us.repoUser.UpdateUserPasswordById(ctx, user.ID.String(), hashPass)
 }
 
 func (us *UserService) SignInUserWithJWT(ctx context.Context, logReq *requests.LoginRequest, secretKey string, expiresAt string) (*responses.LoginResponse, error) {
@@ -82,32 +120,25 @@ func (us *UserService) SignInUserWithJWT(ctx context.Context, logReq *requests.L
 	return mappers.MapTokenToLoginResponse(token, expiresAt), nil
 }
 
-func (us *UserService) GetWordsByUsIdAndLimit(ctx context.Context, getWordsReq *requests.GetWordsByUsIdAndLimitRequest) ([]*responses.WordResp, error) {
+func (us *UserService) GetWordsByUserIdAndLimitAndTopic(ctx context.Context, getWordsReq *requests.GetWordsByUsIdAndLimitRequest, topic string) ([]*models.Word, error) {
 	quantity, err := strconv.Atoi(getWordsReq.Limit)
 	if err != nil {
-		appErr := apperrors.GetWordsByUsIdAndLimitServiceErr.AppendMessage(err)
+		appErr := apperrors.GetWordsByUserIdAndLimitAndTopicErr.AppendMessage(err)
 		us.log.Error(appErr)
 		return nil, appErr
 	}
 
 	userId, err := uuid.Parse(getWordsReq.ID)
 	if err != nil {
-		appErr := apperrors.GetWordsByUsIdAndLimitServiceErr.AppendMessage(err)
+		appErr := apperrors.GetWordsByUserIdAndLimitAndTopicErr.AppendMessage(err)
 		us.log.Error(appErr)
 		return nil, appErr
 	}
 
-	words, err := us.repoUser.GetWordsByIDAndLimit(ctx, &userId, quantity)
-	if err != nil {
-		us.log.Error(err)
-		return nil, err
-	}
-
-	wordsResp := mappers.MapWordsToWordsResp(words)
-	return wordsResp, nil
+	return us.repoUser.GetWordsByUserIdAndLimitAndTopic(ctx, &userId, quantity, topic)
 }
 
-func (us *UserService) GetLearnByUsIdAndLimit(ctx context.Context, getWordsReq *requests.GetWordsByUsIdAndLimitRequest) ([]*responses.WordResp, error) {
+func (us *UserService) GetWordsByUsIdAndLimit(ctx context.Context, getWordsReq *requests.GetWordsByUsIdAndLimitRequest) ([]*models.Word, error) {
 	quantity, err := strconv.Atoi(getWordsReq.Limit)
 	if err != nil {
 		appErr := apperrors.GetWordsByUsIdAndLimitServiceErr.AppendMessage(err)
@@ -122,14 +153,25 @@ func (us *UserService) GetLearnByUsIdAndLimit(ctx context.Context, getWordsReq *
 		return nil, appErr
 	}
 
-	words, err := us.repoUser.GetLearnByIDAndLimit(ctx, &userId, quantity)
+	return us.repoUser.GetWordsByIDAndLimit(ctx, &userId, quantity)
+}
+
+func (us *UserService) GetLearnByUsIdAndLimit(ctx context.Context, getWordsReq *requests.GetWordsByUsIdAndLimitRequest) ([]*models.Word, error) {
+	quantity, err := strconv.Atoi(getWordsReq.Limit)
 	if err != nil {
-		us.log.Error(err)
-		return nil, err
+		appErr := apperrors.GetLearnByUsIdAndLimitErr.AppendMessage(err)
+		us.log.Error(appErr)
+		return nil, appErr
 	}
 
-	wordsResp := mappers.MapWordsToWordsResp(words)
-	return wordsResp, nil
+	userId, err := uuid.Parse(getWordsReq.ID)
+	if err != nil {
+		appErr := apperrors.GetLearnByUsIdAndLimitErr.AppendMessage(err)
+		us.log.Error(appErr)
+		return nil, appErr
+	}
+
+	return us.repoUser.GetLearnByIDAndLimit(ctx, &userId, quantity)
 }
 
 func (us *UserService) GetUserById(ctx context.Context, id string) (*models.User, error) {
@@ -139,17 +181,12 @@ func (us *UserService) GetUserById(ctx context.Context, id string) (*models.User
 		us.log.Error(appErr)
 		return nil, err
 	}
-	user, err := us.repoUser.GetUserById(ctx, &userId)
-	if err != nil {
-		us.log.Error(err)
-		return nil, err
-	}
 
-	return user, nil
+	return us.repoUser.GetUserById(ctx, &userId)
 }
 
-func (us *UserService) MoveWordToLearned(ctx context.Context, deleteWordReq *requests.DeleteWordFromUserByIDRequest) error {
-	userId, err := uuid.Parse(deleteWordReq.UserID)
+func (us *UserService) MoveWordToLearned(ctx context.Context, userID, wordID string) error {
+	userId, err := uuid.Parse(userID)
 	if err != nil {
 		appErr := apperrors.MoveWordToLearnedErr.AppendMessage(err)
 		us.log.Error(appErr)
@@ -157,7 +194,7 @@ func (us *UserService) MoveWordToLearned(ctx context.Context, deleteWordReq *req
 	}
 
 	user := &models.User{ID: &userId}
-	wordId, err := uuid.Parse(deleteWordReq.WordID)
+	wordId, err := uuid.Parse(wordID)
 	if err != nil {
 		appErr := apperrors.MoveWordToLearnedErr.AppendMessage(err)
 		us.log.Error(appErr)
@@ -165,18 +202,11 @@ func (us *UserService) MoveWordToLearned(ctx context.Context, deleteWordReq *req
 	}
 
 	word := &models.Word{ID: &wordId}
-
-	err = us.repoUser.MoveWordToLearned(ctx, user, word)
-	if err != nil {
-		us.log.Error(err)
-		return err
-	}
-
-	return nil
+	return us.repoUser.MoveWordToLearned(ctx, user, word)
 }
 
-func (us *UserService) AddWordToLearn(ctx context.Context, deleteWordReq *requests.DeleteWordFromUserByIDRequest) error {
-	userId, err := uuid.Parse(deleteWordReq.UserID)
+func (us *UserService) AddWordToLearn(ctx context.Context, userID, wordID string) error {
+	userId, err := uuid.Parse(userID)
 	if err != nil {
 		appErr := apperrors.AddWordToLearnErr.AppendMessage(err)
 		us.log.Error(appErr)
@@ -184,7 +214,7 @@ func (us *UserService) AddWordToLearn(ctx context.Context, deleteWordReq *reques
 	}
 
 	user := &models.User{ID: &userId}
-	wordId, err := uuid.Parse(deleteWordReq.WordID)
+	wordId, err := uuid.Parse(wordID)
 	if err != nil {
 		appErr := apperrors.AddWordToLearnErr.AppendMessage(err)
 		us.log.Error(appErr)
@@ -192,18 +222,11 @@ func (us *UserService) AddWordToLearn(ctx context.Context, deleteWordReq *reques
 	}
 
 	word := &models.Word{ID: &wordId}
-
-	err = us.repoUser.AddWordToLearn(ctx, user, word)
-	if err != nil {
-		us.log.Error(err)
-		return err
-	}
-
-	return nil
+	return us.repoUser.AddWordToLearn(ctx, user, word)
 }
 
-func (us *UserService) DeleteLearnFromUserById(ctx context.Context, deleteWordReq *requests.DeleteWordFromUserByIDRequest) error {
-	userId, err := uuid.Parse(deleteWordReq.UserID)
+func (us *UserService) DeleteLearnFromUserById(ctx context.Context, userID, wordID string) error {
+	userId, err := uuid.Parse(userID)
 	if err != nil {
 		appErr := apperrors.DeleteLearnFromUserByIdErr.AppendMessage(err)
 		us.log.Error(appErr)
@@ -211,7 +234,7 @@ func (us *UserService) DeleteLearnFromUserById(ctx context.Context, deleteWordRe
 	}
 
 	user := &models.User{ID: &userId}
-	wordId, err := uuid.Parse(deleteWordReq.WordID)
+	wordId, err := uuid.Parse(wordID)
 	if err != nil {
 		appErr := apperrors.DeleteLearnFromUserByIdErr.AppendMessage(err)
 		us.log.Error(appErr)
@@ -219,12 +242,9 @@ func (us *UserService) DeleteLearnFromUserById(ctx context.Context, deleteWordRe
 	}
 
 	word := &models.Word{ID: &wordId}
+	return us.repoUser.DeleteLearnWordFromUserByWordID(ctx, user, word)
+}
 
-	err = us.repoUser.DeleteLearnWordFromUserByWordID(ctx, user, word)
-	if err != nil {
-		us.log.Error(err)
-		return err
-	}
-
-	return nil
+func (us *UserService) GetAllUsers(ctx context.Context) ([]*models.User, error) {
+	return us.repoUser.GetAllUsers(ctx)
 }

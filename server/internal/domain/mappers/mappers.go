@@ -2,11 +2,19 @@ package mappers
 
 import (
 	"fmt"
+	"io"
+	"mime/multipart"
+	"os"
+
+	"server/internal/apperrors"
 	"server/internal/domain/models"
 	"server/internal/domain/requests"
 	"server/internal/domain/responses"
+	"strconv"
+	"unicode"
 
 	"github.com/google/uuid"
+	"github.com/tealeg/xlsx"
 )
 
 func MapReqCreateUsToUser(userReq *requests.CreateUserRequest) *models.User {
@@ -83,4 +91,76 @@ func MapWordsToWordsResp(words []*models.Word) []*responses.WordResp {
 	}
 
 	return wordsResp
+}
+
+func MapMultipartToXLS(file *multipart.File) (*xlsx.File, error) {
+	//----------------------------Map file *multipart.File-------------
+	// Создаем временный файл для сохранения содержимого multipart.File
+	tempFile, err := os.CreateTemp("", "upload-*.xlsx")
+	if err != nil {
+		appErr := apperrors.MapMultipartToXLSErr.AppendMessage(err)
+		return nil, appErr
+	}
+	defer tempFile.Close()
+
+	_, err = io.Copy(tempFile, *file)
+	if err != nil {
+		appErr := apperrors.MapMultipartToXLSErr.AppendMessage(err)
+		return nil, appErr
+	}
+
+	xlFile, err := xlsx.OpenFile(tempFile.Name())
+	if err != nil {
+		appErr := apperrors.MapMultipartToXLSErr.AppendMessage(err)
+		return nil, appErr
+	}
+
+	os.Remove(tempFile.Name())
+
+	return xlFile, nil
+}
+
+func MapXLStoLibrary(xlFile *xlsx.File) []*models.Library {
+	wordNew := []*models.Library{}
+	for _, sheet := range xlFile.Sheets {
+		if sheet == nil {
+			break
+		}
+
+		for _, row := range sheet.Rows {
+			if len(row.Cells) == 0 {
+				continue
+			}
+
+			num, err := strconv.Atoi(row.Cells[0].String())
+			if err != nil {
+				return wordNew
+			}
+
+			word := &models.Library{
+				ID:            num,
+				Root:          capitalizeFirstRune(row.Cells[1].String()),
+				English:       capitalizeFirstRune(row.Cells[2].String()),
+				Preposition:   row.Cells[3].String(),
+				Russian:       capitalizeFirstRune(row.Cells[4].String()),
+				Theme:         row.Cells[5].String(),
+				PartsOfSpeech: row.Cells[6].String(),
+			}
+
+			wordNew = append(wordNew, word)
+		}
+	}
+
+	return wordNew
+}
+
+func capitalizeFirstRune(line string) string {
+	runes := []rune(line)
+	for i, r := range runes {
+		if i == 0 {
+			runes[i] = unicode.ToUpper(r)
+		}
+	}
+
+	return string(runes)
 }

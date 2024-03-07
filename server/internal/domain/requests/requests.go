@@ -1,6 +1,7 @@
 package requests
 
 type CreateUserRequest struct {
+	Id       string
 	Email    string `json:"email"`
 	Name     string `json:"name"`
 	LastName string `json:"last_name"`

@@ -31,18 +31,25 @@ func (srv *server) contextExpire(h http.HandlerFunc) http.HandlerFunc {
 func (srv *server) jwtAuthentication(h http.HandlerFunc) http.HandlerFunc {
 	srv.logger.Info("jwtAuthentication")
 	return func(w http.ResponseWriter, r *http.Request) {
-		tokenGet := r.Header.Get("Authorization")
+		cookies := r.Cookies()
+		var tokenGet string
+		for _, cookie := range cookies {
+			if cookie.Name == "user_token_translator" {
+				tokenGet = cookie.Value
+			}
+		}
+
 		if tokenGet == "" {
 			appErr := apperrors.JWTMiddleware.AppendMessage("Vars Authorization")
 			srv.logger.Error(appErr)
-			srv.respond(w, appErr.Message, http.StatusUnauthorized)
+			srv.respondRegistrateErr(w, appErr)
 			return
 		}
 
 		if srv.blacklist.IsTokenBlacklisted(tokenGet) {
 			appErr := apperrors.JWTMiddleware.AppendMessage("Token is blacklisted")
 			srv.logger.Error(appErr)
-			srv.respond(w, appErr.Message, http.StatusUnauthorized)
+			srv.respondAuthorizateErr(w, appErr)
 			return
 		}
 
@@ -59,7 +66,7 @@ func (srv *server) jwtAuthentication(h http.HandlerFunc) http.HandlerFunc {
 		if err != nil {
 			srv.logger.Error(err)
 			appErr := apperrors.JWTMiddleware.AppendMessage("Token is invalid")
-			srv.respond(w, appErr.Message, http.StatusUnauthorized)
+			srv.respondAuthorizateErr(w, appErr)
 			return
 		}
 
@@ -77,16 +84,15 @@ func (srv *server) jwtAuthentication(h http.HandlerFunc) http.HandlerFunc {
 			id, ok := claims["id"].(string)
 			if !ok {
 				appErr := apperrors.JWTMiddleware.AppendMessage("Id not found in token")
-				srv.respond(w, appErr.Message, http.StatusUnauthorized)
+				srv.respondErr(w, appErr)
 				return
 			}
 
-			srv.logger.Infof("TimeOUT CONFIG %v", srv.config.Server.TimeoutContext)
 			timeoutDuration, err := time.ParseDuration(srv.config.Server.TimeoutContext + "s")
 			if err != nil {
 				appErr := apperrors.JWTMiddleware.AppendMessage("Parse duration err").AppendMessage(err)
 				srv.logger.Error(appErr)
-				srv.respond(w, appErr.Message, http.StatusUnauthorized)
+				srv.respondErr(w, appErr)
 				return
 			}
 
@@ -97,12 +103,11 @@ func (srv *server) jwtAuthentication(h http.HandlerFunc) http.HandlerFunc {
 			r = r.WithContext(ctx)
 			h(w, r)
 
-			srv.logger.Info("jwtAuthentication success")
 			return
 		}
 
 		appErr := apperrors.JWTMiddleware.AppendMessage("The token has expired or is invalid")
-		srv.respond(w, appErr.Message, http.StatusUnauthorized)
+		srv.respondErr(w, appErr)
 	}
 }
 

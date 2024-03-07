@@ -1,0 +1,40 @@
+{{ define "registration" }}
+
+{{ template "header" }}
+    
+<main class="px-3">
+    <h1>Регистрация пользователя</h1>
+  <div class="p-2">
+    {{ if eq .Id nil }}
+    <form action="/registration" method="post">
+      <input type="email" name="email" id="email" placeholder="email" class="form-control short-input"><br>
+      <input type="text" name="name" id="name" placeholder="Имя" class="form-control short-input"><br>
+      <input type="text" name="last-name" id="last-name" placeholder="Фамилия" class="form-control short-input"><br>
+      <input type="password" name="password" id="password" placeholder="Пароль" class="form-control short-input"><br>
+      {{ if eq .Role "admin"}}
+      <input type="text" name="role" id="role" placeholder="роль" class="form-control short-input"><br>
+      {{ end }}
+      <textarea name="about" id="about" class="form-control short-input" placeholder="Коротко о себе"></textarea><br>
+      <div class="d-flex2">
+        <button class="btn btn-warning" id="registration">Добавить</button>
+      </div>
+  </form>
+    {{ else }}
+    <div class="alert alert-danger">
+      <p>{{ .Email }}</p>
+      <p>{{ .Id }}</p>
+      <p>{{ .Name }}</p>
+      <script>
+        localStorage.setItem('user_password_translator', '{{ .Password }}');
+        localStorage.setItem('user_email_translator', '{{ .Email }}');
+      </script>
+      <a href="/login" class="btn btn-danger">Перейти к авторизации</a>
+    </div>
+    {{ end }}
+  </div>
+</main>
+
+{{ template "footer" }}
+
+{{ end }}
+      

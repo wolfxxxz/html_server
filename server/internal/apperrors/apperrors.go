@@ -40,10 +40,17 @@ var (
 		Message: "Failed to SetLevelErr",
 		Code:    log,
 	}
-	JWTMiddleware = AppError{
-		Message:  "Failed to JWTMiddlewareErr",
-		Code:     middleware,
-		HTTPCode: http.StatusUnauthorized,
+	MapMultipartToXLSErr = AppError{
+		Message: "Failed to GetAllFromBackUp",
+		Code:    mapers,
+	}
+	InitializeTemplatesErr = AppError{
+		Message: "Failed to InitializeTemplatesErr",
+		Code:    server,
+	}
+	GetAllWordsFromBackUpXlsxErr = AppError{
+		Message: "Failed to GetAllFromBackUp",
+		Code:    backUpRepo,
 	}
 	GetAllFromBackUpErr = AppError{
 		Message: "Failed to GetAllFromBackUp",
@@ -53,8 +60,20 @@ var (
 		Message: "Failed to SaveAllAsJson",
 		Code:    backUpRepo,
 	}
+	SaveWordsAsXLSXErr = AppError{
+		Message: "Failed to SaveWordsAsXLSXErr",
+		Code:    backUpRepo,
+	}
 	InsertWordsLibraryErr = AppError{
 		Message: "Failed to InsertWordsLibraryErr",
+		Code:    repoLibrary,
+	}
+	InsertWordLibraryErr = AppError{
+		Message: "Failed to InsertWordLibraryErr",
+		Code:    repoLibrary,
+	}
+	UpdateWordRowAffectedErr = AppError{
+		Message: "Failed to UpdateWordRowAffectedErr",
 		Code:    repoLibrary,
 	}
 	GetTranslationEnglLikeErr = AppError{
@@ -69,6 +88,15 @@ var (
 		Message: "Failed to GetTranslationRusLikeErr",
 		Code:    repoLibrary,
 	}
+	InitWordsMapErr = AppError{
+		Message: "Failed to InitWordsMapErr",
+		Code:    repoLibrary,
+	}
+	JWTMiddleware = AppError{
+		Message:  "Failed to JWTMiddlewareErr",
+		Code:     middleware,
+		HTTPCode: http.StatusUnauthorized,
+	}
 	GetTranslationRusErr = AppError{
 		Message: "Failed to GetTranslationRusErr",
 		Code:    repoLibrary,
@@ -81,6 +109,10 @@ var (
 		Message: "Failed to UpdateWord",
 		Code:    repoLibrary,
 	}
+	GetAllTopicsErr = AppError{
+		Message: "Failed to GetAllTopicsErr",
+		Code:    repoLibrary,
+	}
 	GetAllWordsErr = AppError{
 		Message: "Failed to GetAllWords",
 		Code:    repoLibrary,
@@ -88,6 +120,14 @@ var (
 	GetWordsWhereRAErr = AppError{
 		Message: "Failed to GetWordsWhereRA",
 		Code:    repoLibrary,
+	}
+	UpdateUserByIdErr = AppError{
+		Message: "Failed to UpdateUserByIdErr",
+		Code:    repoUsers,
+	}
+	GetWordsByUserIdAndLimitAndTopicErr = AppError{
+		Message: "Failed to GetWordsByUserIdAndLimitAndTopicErr",
+		Code:    repoUsers,
 	}
 	UpdateUserErr = AppError{
 		Message: "Failed to UpdateUserErr",
@@ -109,28 +149,64 @@ var (
 		Message: "Failed to GetLearnByIDAndLimitErr",
 		Code:    repoUsers,
 	}
-	DeleteLearnWordFromUserByWordErr = AppError{
+	DeleteLearnWordFromUserByWordIDErr = AppError{
 		Message: "Failed to DeleteLearnWordFromUserByWordErr",
+		Code:    repoUsers,
+	}
+	UpdateLibraryHandlerErr = AppError{
+		Message: "Failed to UpdateLibraryHandlerErr",
 		Code:    repoUsers,
 	}
 	AddWordToLearnRepoErr = AppError{
 		Message: "Failed to AddWordToLearnRepoErr",
 		Code:    repoUsers,
 	}
-	DeleteLearnByUserIDAndLearnIDHandlerErr = AppError{
-		Message: "Failed to deleteLearnByUserIDAndLearnIDHandlerErr",
+	GetAllUsersErr = AppError{
+		Message: "Failed to GetAllUsersErr",
 		Code:    handlers,
 	}
-	GetWordsByUserIDAndLimitHandlerErr = AppError{
-		Message: "Failed to GetWordsByUserIDAndLimitHandlerErr",
+	HomeHandlerErr = AppError{
+		Message: "Failed to HomeHandlerErr",
+		Code:    handlers,
+	}
+	DownloadHandlerErr = AppError{
+		Message: "Failed to HomeHandlerErr",
+		Code:    handlers,
+	}
+	TestUniversalHandlerErr = AppError{
+		Message: "Failed to TestUniversalHandlerErr",
+		Code:    handlers,
+	}
+	GetIdANdRoleFromRequestErr = AppError{
+		Message: "Failed to GetIdANdRoleFromRequestErr",
+		Code:    handlers,
+	}
+	ThemesHandlerErr = AppError{
+		Message: "Failed to ThemesHandlerErr",
+		Code:    handlers,
+	}
+	TestHandlerErr = AppError{
+		Message: "Failed to testHandlerErr",
 		Code:    handlers,
 	}
 	GetTranslationHandlerErr = AppError{
 		Message: "Failed to GetTranslationHandlerErr",
 		Code:    handlers,
 	}
+	UpdateUserPasswordHandlerErr = AppError{
+		Message: "Failed to UpdateUserPasswordHandlerErr",
+		Code:    handlers,
+	}
+	UpdateUserHandlerErr = AppError{
+		Message: "Failed to UpdateUserHandlerErr",
+		Code:    handlers,
+	}
 	LoginHandlerErr = AppError{
 		Message: "Failed to LoginHandlerErr",
+		Code:    handlers,
+	}
+	RespondErr = AppError{
+		Message: "Failed to RespondErr",
 		Code:    handlers,
 	}
 	LogoutHandlerErr = AppError{
@@ -145,20 +221,25 @@ var (
 		Message: "Failed to CreateUserHandlerErr",
 		Code:    handlers,
 	}
-	GetLearnByUserIDAndLimitHandlerErr = AppError{
-		Message: "Failed to GetLearnByUserIDAndLimitHandlerErr",
-		Code:    handlers,
-	}
-	MoveWordToLearnedHandlerErr = AppError{
-		Message: "Failed to MoveWordToLearnedHandlerErr",
-		Code:    handlers,
-	}
-	AddWordToLearnHandlerErr = AppError{
-		Message: "Failed to AddWordToLearnHandlerErr",
+	LearnHandlerErr = AppError{
+		Message: "Failed to LearnHandlerErr",
 		Code:    handlers,
 	}
 	DeleteLearnFromUserByIdErr = AppError{
 		Message: "Failed to DeleteLearnFromUserByIdErr",
+		Code:    services,
+	}
+
+	ComparerTestErr = AppError{
+		Message: "Failed to ComparerTestErr",
+		Code:    services,
+	}
+	ComparerLearnErr = AppError{
+		Message: "Failed to ComparerLearnErr",
+		Code:    services,
+	}
+	GetLearnByUsIdAndLimitErr = AppError{
+		Message: "Failed to GetLearnByUsIdAndLimitErr",
 		Code:    services,
 	}
 	GetTranslationByWordErr = AppError{
@@ -166,7 +247,16 @@ var (
 		Code:    services,
 	}
 	SignInUserWithJWTErr = AppError{
-		Message: "Failed to SignInUserWithJWTErr",
+		Message:  "Failed to SignInUserWithJWTErr",
+		Code:     services,
+		HTTPCode: http.StatusUnauthorized,
+	}
+	ClaimJWTTokenErr = AppError{
+		Message: "Failed to ClaimJWTTokenErr",
+		Code:    services,
+	}
+	UpdateUserPasswordByIdErr = AppError{
+		Message: "Failed to UpdateUserPasswordByIdErr",
 		Code:    services,
 	}
 	GetUserByIdErr = AppError{
@@ -181,8 +271,8 @@ var (
 		Message: "Failed to AddWordToLearnErr",
 		Code:    services,
 	}
-	ClaimJWTTokenErr = AppError{
-		Message: "Failed to ClaimJWTTokenErr",
+	GetAllTopicsLibServErr = AppError{
+		Message: "Failed to GetAllTopicsLibServErr",
 		Code:    services,
 	}
 	HashPasswordErr = AppError{
@@ -201,8 +291,9 @@ func (appError *AppError) Error() string {
 
 func (appError *AppError) AppendMessage(anyErrs ...interface{}) *AppError {
 	return &AppError{
-		Message: fmt.Sprintf("%v : %v", appError.Message, anyErrs),
-		Code:    appError.Code,
+		Message:  fmt.Sprintf("%v : %v", appError.Message, anyErrs),
+		Code:     appError.Code,
+		HTTPCode: appError.HTTPCode,
 	}
 }
 
