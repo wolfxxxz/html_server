@@ -1,0 +1,20 @@
+{{ define "update_lib" }}
+
+{{ template "header" }}
+    
+<main class="px-3">
+    <h1>Привет админ! Хочешь обновить библиотеку?</h1>
+    
+    <p class="lead">Это тестовый сайт, не вводите реквизиты карт и секретные данные.</p>
+
+    <form action="/library-update" method="POST" enctype="multipart/form-data">
+      <input type="file" name="fileToUpload" id="fileToUpload">
+      <input type="submit" value="Upload File" name="submit">
+    </form>
+
+</main>
+
+{{ template "footer" }}
+
+{{ end }}
+      
