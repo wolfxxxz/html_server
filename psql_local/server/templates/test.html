@@ -1,0 +1,46 @@
+{{ define "test" }}
+
+{{ template "header" }}
+    
+<main class="px-3">
+    <h1>Тест</h1>
+    <p class="lead"></p>
+
+    <div class="btn btn-warning">
+        <h1>давай потестим</h1>
+        {{ if not .Result }}
+        <form action="/test" method="POST">
+            {{ range $index, $word := .Words }}
+            <div>
+                <label class="info">{{ $word.PartsOfSpeech}} // {{ $word.Theme }} </label><br>
+                <label for="word{{ $index }}">{{ $word.Russian }}</label>
+                <input type="text" id="word{{ $index }}" name="answer{{ $index }}" required>
+            </div>
+            {{ end }}
+            <br><input type="submit" value="Проверить">
+        </form>
+        {{ end }}
+        {{ if .Result }}
+        <div class="result">
+            {{ range $index, $word := .Words }}
+            <div>
+                {{ if not $word.Right }} <label class="btn btn-warning">!!!</label> {{ end }}
+                <label for="word{{ $index }}">{{ $word.Russian }}-></label>
+                <label class="info">{{ $word.English}}</label><br>
+            </div>
+            {{ end }}
+            <p>Wrong answers: {{ .Result.Wrong }}</p>
+            <p>Right answers: {{ .Result.Right }}</p>
+        </div>
+        <div class="link">
+            <a class="link" href="/learn">учить слова</a>
+
+            <a class="link" href="/test">ещё один тест</a>
+        </div>
+        {{ end }}
+    </div>
+</main>
+
+{{ template "footer" }}
+
+{{ end }}
