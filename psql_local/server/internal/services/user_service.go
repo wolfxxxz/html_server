@@ -16,13 +16,14 @@ import (
 )
 
 type UserService struct {
+	repoWords   repositories.RepoWords
 	repoUser    repositories.RepoUsers
 	repoLibrary repositories.RepoLibrary
 	log         *logrus.Logger
 }
 
-func NewUserService(userRepo repositories.RepoUsers, repoLibrary repositories.RepoLibrary, log *logrus.Logger) *UserService {
-	return &UserService{repoUser: userRepo, repoLibrary: repoLibrary, log: log}
+func NewUserService(repoWords repositories.RepoWords, userRepo repositories.RepoUsers, repoLibrary repositories.RepoLibrary, log *logrus.Logger) *UserService {
+	return &UserService{repoWords: repoWords, repoUser: userRepo, repoLibrary: repoLibrary, log: log}
 }
 
 func (us *UserService) CreateUser(ctx context.Context, userReq *requests.CreateUserRequest) (*responses.CreateUserResponse, error) {
@@ -49,32 +50,16 @@ func (us *UserService) CreateUser(ctx context.Context, userReq *requests.CreateU
 
 	user.ID = &userUUID
 
-	library, err := us.repoLibrary.GetAllWords()
+	words, err := us.repoWords.GetAllWords() //repoLibrary.GetAllWords()
 	if err != nil {
 		return nil, err
 	}
 
-	words := mappers.MapLibraryToWords(library)
+	//words := mappers.MapLibraryToWords(library)
 	//new one limit
-	count := 0
-	wordsForRequest := []*models.Word{}
-	for _, word := range words {
-		count++
-		wordsForRequest = append(wordsForRequest, word)
-		if count >= 50 {
-			user.Words = wordsForRequest
-			err = us.repoUser.UpdateUser(ctx, user)
-			if err != nil {
-				return nil, err
-			}
 
-			count = 0
-		}
-
-	}
-
-	user.Words = wordsForRequest
-	err = us.repoUser.UpdateUser(ctx, user)
+	//user.Words = wordsForRequest
+	err = us.repoUser.AddWordsToUser(ctx, user, words) // UpdateUser(ctx, user)
 	if err != nil {
 		return nil, err
 	}
@@ -219,14 +204,14 @@ func (us *UserService) MoveWordToLearned(ctx context.Context, userID, wordID str
 	}
 
 	user := &models.User{ID: &userId}
-	wordId, err := uuid.Parse(wordID)
+	wordId, err := strconv.Atoi(wordID)
 	if err != nil {
 		appErr := apperrors.MoveWordToLearnedErr.AppendMessage(err)
 		us.log.Error(appErr)
 		return err
 	}
 
-	word := &models.Word{ID: &wordId}
+	word := &models.Word{ID: wordId}
 	return us.repoUser.MoveWordToLearned(ctx, user, word)
 }
 
@@ -239,14 +224,14 @@ func (us *UserService) AddWordToLearn(ctx context.Context, userID, wordID string
 	}
 
 	user := &models.User{ID: &userId}
-	wordId, err := uuid.Parse(wordID)
+	wordId, err := strconv.Atoi(wordID)
 	if err != nil {
 		appErr := apperrors.AddWordToLearnErr.AppendMessage(err)
 		us.log.Error(appErr)
 		return appErr
 	}
 
-	word := &models.Word{ID: &wordId}
+	word := &models.Word{ID: wordId}
 	return us.repoUser.AddWordToLearn(ctx, user, word)
 }
 
@@ -259,14 +244,14 @@ func (us *UserService) DeleteLearnFromUserById(ctx context.Context, userID, word
 	}
 
 	user := &models.User{ID: &userId}
-	wordId, err := uuid.Parse(wordID)
+	wordId, err := strconv.Atoi(wordID)
 	if err != nil {
 		appErr := apperrors.DeleteLearnFromUserByIdErr.AppendMessage(err)
 		us.log.Error(appErr)
 		return err
 	}
 
-	word := &models.Word{ID: &wordId}
+	word := &models.Word{ID: wordId}
 	return us.repoUser.DeleteLearnWordFromUserByWordID(ctx, user, word)
 }
 

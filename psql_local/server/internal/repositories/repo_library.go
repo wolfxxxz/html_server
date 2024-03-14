@@ -19,6 +19,7 @@ type RepoLibrary interface {
 	InsertWordLibrary(ctx context.Context, word *models.Library) error
 	UpdateWord(ctx context.Context, word *models.Library) error
 	InitWordsMap() error
+	UpdateWordsMap() error
 	GetAllTopics() ([]string, error)
 }
 
@@ -48,7 +49,24 @@ func (rt *repoLibrary) InitWordsMap() error {
 	}
 
 	WordsLibraryLocalMap = &wordsMap
+	return nil
+}
 
+func (rt *repoLibrary) UpdateWordsMap() error {
+	lib, err := rt.GetAllWords()
+	if err != nil {
+		appErr := apperrors.UpdateWordsMapErr.AppendMessage(err)
+		rt.log.Error(appErr)
+		return appErr
+	}
+
+	wordsMap := make(map[string][]string)
+
+	for _, word := range lib {
+		wordsMap[word.Russian] = append(wordsMap[word.Russian], word.English)
+	}
+
+	WordsLibraryLocalMap = &wordsMap
 	return nil
 }
 

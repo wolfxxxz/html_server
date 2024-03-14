@@ -20,11 +20,11 @@ type User struct {
 
 type Word struct {
 	gorm.Model
-	ID            *uuid.UUID `json:"id" gorm:"primaryKey"`
-	English       string     `json:"english"`
-	Russian       string     `json:"russian"`
-	Preposition   string     `json:"preposition"`
-	Theme         string     `json:"theme"`
-	PartsOfSpeech string     `json:"part_of_speech"`
+	ID            int    `json:"id" gorm:"primaryKey"`
+	English       string `json:"english"`
+	Russian       string `json:"russian"`
+	Preposition   string `json:"preposition"`
+	Theme         string `json:"theme"`
+	PartsOfSpeech string `json:"part_of_speech"`
 	Right         bool
 }

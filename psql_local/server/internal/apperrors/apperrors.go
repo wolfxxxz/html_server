@@ -92,6 +92,10 @@ var (
 		Message: "Failed to InitWordsMapErr",
 		Code:    repoLibrary,
 	}
+	UpdateWordsMapErr = AppError{
+		Message: "Failed to UpdateWordsMapErr",
+		Code:    repoLibrary,
+	}
 	JWTMiddleware = AppError{
 		Message:  "Failed to JWTMiddlewareErr",
 		Code:     middleware,
@@ -267,8 +271,12 @@ var (
 		Message: "Failed to MoveWordToLearnedErr",
 		Code:    services,
 	}
+	AddWordsToUserErr = AppError{
+		Message: "Failed to MoveWordToLearnedErr",
+		Code:    services,
+	}
 	AddWordToLearnErr = AppError{
-		Message: "Failed to AddWordToLearnErr",
+		Message: "Failed to AddWordsToUserErr",
 		Code:    services,
 	}
 	GetAllTopicsLibServErr = AppError{

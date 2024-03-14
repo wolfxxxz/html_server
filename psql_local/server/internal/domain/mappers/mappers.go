@@ -44,9 +44,8 @@ func ScanUser(u *models.User) {
 func MapLibraryToWords(library []*models.Library) []*models.Word {
 	words := []*models.Word{}
 	for _, libWord := range library {
-		byd := uuid.New()
 		tempWord := &models.Word{
-			ID:            &byd,
+			ID:            libWord.ID,
 			Russian:       libWord.Russian,
 			English:       libWord.English,
 			Theme:         libWord.Theme,
@@ -80,10 +79,11 @@ func MapTokenToLoginResponse(token string, expiresAt string) *responses.LoginRes
 func MapWordsToWordsResp(words []*models.Word) []*responses.WordResp {
 	wordsResp := []*responses.WordResp{}
 	for _, word := range words {
+		wordId := strconv.Itoa(word.ID)
 		wordResp := &responses.WordResp{
 			English:       word.English,
 			Russian:       word.Russian,
-			ID:            word.ID.String(),
+			ID:            wordId,
 			PartsOfSpeech: word.PartsOfSpeech,
 		}
 
@@ -140,6 +140,40 @@ func MapXLStoLibrary(xlFile *xlsx.File) []*models.Library {
 			word := &models.Library{
 				ID:            num,
 				Root:          capitalizeFirstRune(row.Cells[1].String()),
+				English:       capitalizeFirstRune(row.Cells[2].String()),
+				Preposition:   row.Cells[3].String(),
+				Russian:       capitalizeFirstRune(row.Cells[4].String()),
+				Theme:         row.Cells[5].String(),
+				PartsOfSpeech: row.Cells[6].String(),
+			}
+
+			wordNew = append(wordNew, word)
+		}
+	}
+
+	return wordNew
+}
+
+func MapXLStoWords(xlFile *xlsx.File) []*models.Word {
+	wordNew := []*models.Word{}
+	for _, sheet := range xlFile.Sheets {
+		if sheet == nil {
+			break
+		}
+
+		for _, row := range sheet.Rows {
+			if len(row.Cells) == 0 {
+				continue
+			}
+
+			num, err := strconv.Atoi(row.Cells[0].String())
+			if err != nil {
+				return wordNew
+			}
+
+			word := &models.Word{
+				ID: num,
+				//Root:          capitalizeFirstRune(row.Cells[1].String()),
 				English:       capitalizeFirstRune(row.Cells[2].String()),
 				Preposition:   row.Cells[3].String(),
 				Russian:       capitalizeFirstRune(row.Cells[4].String()),

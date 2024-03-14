@@ -20,6 +20,7 @@ import (
 
 type server struct {
 	repoLibrary repositories.RepoLibrary
+	repoWords   repositories.RepoWords
 	repoUsers   repositories.RepoUsers
 	repoBackUp  repositories.BackUpCopyRepo
 	router      Router
@@ -29,10 +30,11 @@ type server struct {
 	tmpls       map[string]*template.Template
 }
 
-func NewServer(repoLibrary repositories.RepoLibrary, repoUsers repositories.RepoUsers, repoBackUp repositories.BackUpCopyRepo,
+func NewServer(repoLibrary repositories.RepoLibrary, repoWords repositories.RepoWords, repoUsers repositories.RepoUsers, repoBackUp repositories.BackUpCopyRepo,
 	logger *logrus.Logger, config *config.Config) *server {
 	return &server{
 		repoLibrary: repoLibrary,
+		repoWords:   repoWords,
 		repoUsers:   repoUsers,
 		repoBackUp:  repoBackUp,
 		router:      &router{mux: mux.NewRouter()},
@@ -110,9 +112,9 @@ func Run() {
 		}
 
 		repoUser := repositories.NewRepoUsers(db, logger)
-
 		repoLibrary := repositories.NewRepoLibrary(db, logger)
-		userService := services.NewUserService(repoUser, repoLibrary, logger)
+		repoWords := repositories.NewWords(db, logger)
+		userService := services.NewUserService(repoWords, repoUser, repoLibrary, logger)
 		adminUserReq := requests.CreateUserRequest{
 			Email:    "admin@admin.admin",
 			Name:     "mainName",
@@ -135,10 +137,12 @@ func Run() {
 		logger.Fatal(err)
 	}
 
+	repoWords := repositories.NewWords(db, logger)
+
 	repoUser := repositories.NewRepoUsers(db, logger)
 	repoBackup := repositories.NewBackUpCopyRepo("save_copy/library.xlsx", logger)
 
-	srv := NewServer(repoLibrary, repoUser, repoBackup, logger, cfg)
+	srv := NewServer(repoLibrary, repoWords, repoUser, repoBackup, logger, cfg)
 
 	srv.initializeRoutes()
 	logger.Infof("Listening HTTP service on %s port", cfg.AppPort)

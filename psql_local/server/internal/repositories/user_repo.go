@@ -25,6 +25,7 @@ type RepoUsers interface {
 	DeleteLearnWordFromUserByWordID(ctx context.Context, user *models.User, word *models.Word) error
 	GetWordsByUserIdAndLimitAndTopic(ctx context.Context, id *uuid.UUID, limit int, topic string) ([]*models.Word, error)
 	GetAllUsers(ctx context.Context) ([]*models.User, error)
+	AddWordsToUser(ctx context.Context, user *models.User, words []*models.Word) error
 }
 
 type repoUsers struct {
@@ -102,6 +103,19 @@ func (usr *repoUsers) MoveWordToLearned(ctx context.Context, user *models.User, 
 		appErr := apperrors.MoveWordToLearnedErr.AppendMessage(err)
 		usr.log.Error(appErr)
 		return appErr
+	}
+
+	return nil
+}
+
+func (usr *repoUsers) AddWordsToUser(ctx context.Context, user *models.User, words []*models.Word) error {
+	for _, word := range words {
+		err := usr.db.Model(user).Association("Words").Append(word)
+		if err != nil {
+			appErr := apperrors.AddWordsToUserErr.AppendMessage(word.English, "-word-", err)
+			usr.log.Error(appErr)
+			return appErr
+		}
 	}
 
 	return nil

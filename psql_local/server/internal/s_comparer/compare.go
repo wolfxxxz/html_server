@@ -12,12 +12,13 @@ import (
 )
 
 type Comparer struct {
+	repoWords   repositories.RepoWords
 	repoUser    repositories.RepoUsers
 	repoLibrary repositories.RepoLibrary
 	log         *logrus.Logger
 }
 
-func NewComparer(userRepo repositories.RepoUsers, repoLibrary repositories.RepoLibrary, log *logrus.Logger) *Comparer {
+func NewComparer(repoWords repositories.RepoWords, userRepo repositories.RepoUsers, repoLibrary repositories.RepoLibrary, log *logrus.Logger) *Comparer {
 	return &Comparer{repoUser: userRepo, repoLibrary: repoLibrary, log: log}
 }
 
@@ -27,11 +28,13 @@ func (srv Comparer) CompareTestWords(r *http.Request, userID string) error {
 		answer := r.FormValue("answer" + strconv.Itoa(i))
 		//srv.log.Infof("word [%v] and answer [%v]", word, answer)
 
-		userService := services.NewUserService(srv.repoUser, srv.repoLibrary, srv.log)
+		userService := services.NewUserService(srv.repoWords, srv.repoUser, srv.repoLibrary, srv.log)
+		wordId := strconv.Itoa(word.ID)
 		if srv.compare(word, answer) {
 			//srv.log.Infof("IF COMPARE word [%v] and answer [%v]", word, answer)
 			HashTableWords[userID].Words[i].Right = true
-			err := userService.MoveWordToLearned(r.Context(), userID, word.ID.String())
+
+			err := userService.MoveWordToLearned(r.Context(), userID, wordId)
 			if err != nil {
 				appErr := err.(*apperrors.AppError)
 				srv.log.Error(appErr)
@@ -41,7 +44,7 @@ func (srv Comparer) CompareTestWords(r *http.Request, userID string) error {
 			result.Right++
 		} else {
 			//srv.log.Infof("ELSE word [%v] and answer [%v]", word, answer)
-			err := userService.AddWordToLearn(r.Context(), userID, word.ID.String())
+			err := userService.AddWordToLearn(r.Context(), userID, wordId)
 			if err != nil {
 				appErr := err.(*apperrors.AppError)
 				srv.log.Error(appErr)
@@ -61,11 +64,12 @@ func (srv Comparer) CompareTestWords(r *http.Request, userID string) error {
 
 func (srv Comparer) CompareLearnWords(r *http.Request, userID string) error {
 	words := []*models.Word{}
-	userService := services.NewUserService(srv.repoUser, srv.repoLibrary, srv.log)
+	userService := services.NewUserService(srv.repoWords, srv.repoUser, srv.repoLibrary, srv.log)
 	for i, word := range HashTableWordsLearn[userID].Words {
 		answer := r.FormValue("answer" + strconv.Itoa(i))
 		if srv.compareToLoverAndIgnoreSpace(word.English, answer) {
-			err := userService.DeleteLearnFromUserById(r.Context(), userID, word.ID.String())
+			wordId := strconv.Itoa(word.ID)
+			err := userService.DeleteLearnFromUserById(r.Context(), userID, wordId)
 			if err != nil {
 				appErr := err.(*apperrors.AppError)
 				srv.log.Error(appErr)

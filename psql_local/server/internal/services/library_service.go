@@ -14,13 +14,14 @@ import (
 )
 
 type LibraryService struct {
+	repoWords   repositories.RepoWords
 	repoLibrary repositories.RepoLibrary
 	repoBackup  repositories.BackUpCopyRepo
 	log         *logrus.Logger
 }
 
-func NewLibraryService(repoLibrary repositories.RepoLibrary, repoBackup repositories.BackUpCopyRepo, log *logrus.Logger) *LibraryService {
-	return &LibraryService{repoLibrary: repoLibrary, repoBackup: repoBackup, log: log}
+func NewLibraryService(repoLibrary repositories.RepoLibrary, repoWords repositories.RepoWords, repoBackup repositories.BackUpCopyRepo, log *logrus.Logger) *LibraryService {
+	return &LibraryService{repoLibrary: repoLibrary, repoWords: repoWords, repoBackup: repoBackup, log: log}
 }
 
 func (ls *LibraryService) GetTranslationByWord(ctx context.Context, translReq string) ([]*models.Library, error) {
@@ -83,6 +84,31 @@ func (ls *LibraryService) UpdateLibraryOldAndNewWordsByMultyFile(ctx context.Con
 			if err == &apperrors.UpdateWordRowAffectedErr {
 				ls.log.Info(fmt.Sprintf("insert word %v, ID %v", word.English, word.ID))
 				err := ls.repoLibrary.InsertWordLibrary(ctx, word)
+				if err != nil {
+					return err
+				}
+
+				continue
+			}
+
+			ls.log.Error(err)
+			return err
+		}
+	}
+	//
+	err = ls.repoLibrary.UpdateWordsMap()
+	if err != nil {
+		ls.log.Error(err)
+		return err
+	}
+
+	wordsUpdate := mappers.MapXLStoWords(fileXLS)
+	for _, word := range wordsUpdate {
+		err := ls.repoWords.UpdateWord(ctx, word)
+		if err != nil {
+			if err == &apperrors.UpdateWordRowAffectedErr {
+				ls.log.Info(fmt.Sprintf("insert word %v, ID %v", word.English, word.ID))
+				err := ls.repoWords.InsertWord(ctx, word)
 				if err != nil {
 					return err
 				}
