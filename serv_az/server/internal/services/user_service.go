@@ -52,7 +52,14 @@ func (us *UserService) CreateUser(ctx context.Context, userReq *requests.CreateU
 	us.log.Error("GET ALL WORDS--------------------------------------------------------")
 	words, err := us.repoWords.GetAllWords() //repoLibrary.GetAllWords()
 	if err != nil {
+		us.log.Error(err)
 		return nil, err
+	}
+
+	if len(words) == 0 {
+		us.log.Info("Admin has been created")
+		respCreateUser := &responses.CreateUserResponse{UserId: user.ID.String()}
+		return respCreateUser, nil
 	}
 
 	//words := mappers.MapLibraryToWords(library)

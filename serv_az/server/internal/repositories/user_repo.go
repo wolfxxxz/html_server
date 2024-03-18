@@ -6,6 +6,7 @@ import (
 	"server/internal/apperrors"
 	"server/internal/domain/models"
 	"server/internal/domain/requests"
+	"sort"
 	"strings"
 
 	"github.com/google/uuid"
@@ -111,16 +112,39 @@ func (usr *repoUsers) MoveWordToLearned(ctx context.Context, user *models.User, 
 }
 
 func (usr *repoUsers) AddWordsToUser(ctx context.Context, user *models.User, words []*models.Word) error {
+	sort.SliceStable(words, func(i, j int) bool {
+		return words[i].Theme > words[j].Theme
+	})
 	var values []string
+	counter := 0
 	for _, word := range words {
-		values = append(values, fmt.Sprintf("('%s', %d)", user.ID.String(), word.ID))
-	}
-	query := fmt.Sprintf("INSERT INTO user_words (user_id, word_id) VALUES %s ON CONFLICT DO NOTHING", strings.Join(values, ","))
+		counter++
 
-	result := usr.db.Exec(query)
-	if result.Error != nil {
-		return result.Error
+		values = append(values, fmt.Sprintf("('%s', %d)", user.ID.String(), word.ID))
+		if counter >= 999 {
+			query := fmt.Sprintf("INSERT INTO user_words (user_id, word_id) VALUES %s", strings.Join(values, ","))
+
+			result := usr.db.Exec(query)
+			if result.Error != nil {
+				appErr := apperrors.AddWordsToUserErr.AppendMessage(result.Error)
+				usr.log.Error(appErr)
+				return appErr
+			}
+
+			counter = 0
+			a := []string{}
+			values = a
+		}
 	}
+	/*
+		query := fmt.Sprintf("INSERT INTO user_words (user_id, word_id) VALUES %s", strings.Join(values, ","))
+
+		result := usr.db.Exec(query)
+		if result.Error != nil {
+			appErr := apperrors.AddWordsToUserErr.AppendMessage(result.Error)
+			usr.log.Error(appErr)
+			return appErr
+		}*/
 
 	return nil
 }

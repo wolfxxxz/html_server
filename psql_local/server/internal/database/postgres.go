@@ -40,7 +40,7 @@ func (p *postgresDB) SetupDatabase(ctx context.Context, conf *config.Config, log
 	)
 
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
-		Logger: logger.Default.LogMode(logger.Silent),
+		Logger: logger.Default.LogMode(logger.Info),
 	})
 	if err != nil {
 		appErr := apperrors.SetupDatabaseErr.AppendMessage(err)
