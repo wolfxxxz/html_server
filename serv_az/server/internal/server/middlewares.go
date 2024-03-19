@@ -18,7 +18,7 @@ const (
 )
 
 func (srv *server) contextExpire(h http.HandlerFunc) http.HandlerFunc {
-	srv.logger.Info("contextExpire")
+	//srv.logger.Info("contextExpire")
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Minute)
 		defer cancel()
@@ -29,7 +29,7 @@ func (srv *server) contextExpire(h http.HandlerFunc) http.HandlerFunc {
 }
 
 func (srv *server) jwtAuthentication(h http.HandlerFunc) http.HandlerFunc {
-	srv.logger.Info("jwtAuthentication")
+	//srv.logger.Info("jwtAuthentication")
 	return func(w http.ResponseWriter, r *http.Request) {
 		cookies := r.Cookies()
 		var tokenGet string
