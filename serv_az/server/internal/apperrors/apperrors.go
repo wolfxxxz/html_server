@@ -20,6 +20,10 @@ var (
 		Message: "Failed SetupDatabaseErr",
 		Code:    database,
 	}
+	PingEveryMinutsErr = AppError{
+		Message: "Failed PingEveryMinutsErr",
+		Code:    database,
+	}
 	EnvConfigLoadError = AppError{
 		Message: "Failed to load env file",
 		Code:    envInit,

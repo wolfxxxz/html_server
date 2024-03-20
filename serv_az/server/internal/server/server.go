@@ -96,6 +96,12 @@ func Run() {
 		logger.Fatal(err)
 	}
 
+	go func() {
+		if err := psglDB.PingEveryMinuts(ctx, 30, logger); err != nil {
+			logger.Error(err)
+		}
+	}()
+
 	if !db.Migrator().HasTable(&models.Library{}) {
 		err = db.AutoMigrate(&models.Library{})
 		if err != nil {
@@ -138,7 +144,6 @@ func Run() {
 	}
 
 	repoWords := repositories.NewWords(db, logger)
-
 	repoUser := repositories.NewRepoUsers(db, logger)
 	repoBackup := repositories.NewBackUpCopyRepo("save_copy/library.xlsx", logger)
 
