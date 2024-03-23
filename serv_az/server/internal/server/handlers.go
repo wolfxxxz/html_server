@@ -107,7 +107,7 @@ func (srv *server) getUserByIdHandler() http.HandlerFunc {
 			return
 		}
 
-		userService := services.NewUserService(srv.repoWords, srv.repoUsers, srv.repoLibrary, srv.logger)
+		userService := services.NewUserService(srv.repoWords, srv.repoUsers, srv.repoLibrary, srv.sender, srv.logger)
 		user, err := userService.GetUserById(r.Context(), userID)
 		if err != nil {
 			appErr := err.(*apperrors.AppError)
@@ -178,7 +178,7 @@ func (srv *server) loginHandler() http.HandlerFunc {
 			email := r.FormValue("email")
 			password := r.FormValue("password")
 
-			userService := services.NewUserService(srv.repoWords, srv.repoUsers, srv.repoLibrary, srv.logger)
+			userService := services.NewUserService(srv.repoWords, srv.repoUsers, srv.repoLibrary, srv.sender, srv.logger)
 			loginRequest := &requests.LoginRequest{
 				Password: password,
 				Email:    email,
@@ -222,7 +222,7 @@ func (srv *server) createUserHandler() http.HandlerFunc {
 			//role := r.FormValue("role")
 			//about := r.FormValue("about")
 
-			userService := services.NewUserService(srv.repoWords, srv.repoUsers, srv.repoLibrary, srv.logger)
+			userService := services.NewUserService(srv.repoWords, srv.repoUsers, srv.repoLibrary, srv.sender, srv.logger)
 			createUserRequest := &requests.CreateUserRequest{
 				Email:    email,
 				Name:     name,
@@ -249,9 +249,39 @@ func (srv *server) createUserHandler() http.HandlerFunc {
 	}
 }
 
+func (srv *server) restoreUserPasswordHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		userService := services.NewUserService(srv.repoWords, srv.repoUsers, srv.repoLibrary, srv.sender, srv.logger)
+
+		if r.Method == http.MethodGet {
+			err := srv.tmpls[restoreUserPassword].ExecuteTemplate(w, restoreUserPassword, nil)
+			if err != nil {
+				appErr := apperrors.UpdateUserHandlerErr.AppendMessage(err)
+				srv.logger.Error(appErr)
+				srv.respondErr(w, appErr)
+				return
+			}
+		}
+
+		if r.Method == http.MethodPost {
+			email := r.FormValue("email")
+
+			err := userService.RestoreUserPassword(r.Context(), email)
+			if err != nil {
+				appErr := err.(*apperrors.AppError)
+				srv.logger.Error(appErr)
+				srv.respondErr(w, appErr)
+				return
+			}
+
+			http.Redirect(w, r, "/login", http.StatusSeeOther)
+		}
+	}
+}
+
 func (srv *server) updateUserHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		userService := services.NewUserService(srv.repoWords, srv.repoUsers, srv.repoLibrary, srv.logger)
+		userService := services.NewUserService(srv.repoWords, srv.repoUsers, srv.repoLibrary, srv.sender, srv.logger)
 		userID, _, ok := srv.getIdANdRoleFromRequest(r)
 		if !ok {
 			appErr := apperrors.UpdateUserHandlerErr.AppendMessage("UserIdErr")
@@ -308,7 +338,7 @@ func (srv *server) updateUserHandler() http.HandlerFunc {
 
 func (srv *server) updateUserPasswordHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		userService := services.NewUserService(srv.repoWords, srv.repoUsers, srv.repoLibrary, srv.logger)
+		userService := services.NewUserService(srv.repoWords, srv.repoUsers, srv.repoLibrary, srv.sender, srv.logger)
 		userID, _, ok := srv.getIdANdRoleFromRequest(r)
 		if !ok {
 			appErr := apperrors.UpdateUserPasswordHandlerErr.AppendMessage("UserIdErr")
@@ -371,7 +401,7 @@ func (srv *server) testHandler() http.HandlerFunc {
 			return
 		}
 
-		userService := services.NewUserService(srv.repoWords, srv.repoUsers, srv.repoLibrary, srv.logger)
+		userService := services.NewUserService(srv.repoWords, srv.repoUsers, srv.repoLibrary, srv.sender, srv.logger)
 		getWordsByUsIdAndLimitRequest := &requests.GetWordsByUsIdAndLimitRequest{ID: userID, Limit: "5"}
 
 		if r.Method == http.MethodGet {
@@ -408,7 +438,7 @@ func (srv *server) testHandler() http.HandlerFunc {
 				return
 			}
 
-			compareServ := comparer.NewComparer(srv.repoWords, srv.repoUsers, srv.repoLibrary, srv.logger)
+			compareServ := comparer.NewComparer(srv.repoWords, srv.repoUsers, srv.repoLibrary, srv.sender, srv.logger)
 			err = compareServ.CompareTestWords(r, userID)
 			if err != nil {
 				appErr := apperrors.TestHandlerErr.AppendMessage(err)
@@ -438,7 +468,7 @@ func (srv *server) learnHandler() http.HandlerFunc {
 			return
 		}
 
-		userService := services.NewUserService(srv.repoWords, srv.repoUsers, srv.repoLibrary, srv.logger)
+		userService := services.NewUserService(srv.repoWords, srv.repoUsers, srv.repoLibrary, srv.sender, srv.logger)
 		getWordsByUsIdAndLimitRequest := &requests.GetWordsByUsIdAndLimitRequest{ID: userID, Limit: "5"}
 
 		if r.Method == http.MethodGet {
@@ -452,8 +482,6 @@ func (srv *server) learnHandler() http.HandlerFunc {
 
 			pageData := &models.TestPageData{
 				Words: words,
-				//Result: results
-				//TestPassed: false,
 			}
 
 			comparer.HashTableWordsLearn[userID] = pageData
@@ -475,7 +503,7 @@ func (srv *server) learnHandler() http.HandlerFunc {
 				return
 			}
 
-			compareServ := comparer.NewComparer(srv.repoWords, srv.repoUsers, srv.repoLibrary, srv.logger)
+			compareServ := comparer.NewComparer(srv.repoWords, srv.repoUsers, srv.repoLibrary, srv.sender, srv.logger)
 			err = compareServ.CompareLearnWords(r, userID)
 			if err != nil {
 				appErr := apperrors.LearnHandlerErr.AppendMessage("User ID Err")
@@ -549,7 +577,7 @@ func (srv *server) testUniversalHandler() http.HandlerFunc {
 			return
 		}
 
-		userService := services.NewUserService(srv.repoWords, srv.repoUsers, srv.repoLibrary, srv.logger)
+		userService := services.NewUserService(srv.repoWords, srv.repoUsers, srv.repoLibrary, srv.sender, srv.logger)
 		getWordsByUsIdAndLimitRequest := &requests.GetWordsByUsIdAndLimitRequest{ID: userID, Limit: "5"}
 		vars := mux.Vars(r)
 		topic := vars["theme"]
@@ -591,7 +619,7 @@ func (srv *server) testUniversalHandler() http.HandlerFunc {
 				return
 			}
 
-			compareServ := comparer.NewComparer(srv.repoWords, srv.repoUsers, srv.repoLibrary, srv.logger)
+			compareServ := comparer.NewComparer(srv.repoWords, srv.repoUsers, srv.repoLibrary, srv.sender, srv.logger)
 			err = compareServ.CompareTestWords(r, userID)
 			if err != nil {
 				appErr := apperrors.TestUniversalHandlerErr.AppendMessage(err)
@@ -766,7 +794,7 @@ func (srv *server) getAllUsersHandler() http.HandlerFunc {
 			return
 		}
 
-		userService := services.NewUserService(srv.repoWords, srv.repoUsers, srv.repoLibrary, srv.logger)
+		userService := services.NewUserService(srv.repoWords, srv.repoUsers, srv.repoLibrary, srv.sender, srv.logger)
 		users, err := userService.GetAllUsers(r.Context())
 		if err != nil {
 			appErr := err.(*apperrors.AppError)

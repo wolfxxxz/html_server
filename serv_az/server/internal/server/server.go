@@ -10,6 +10,7 @@ import (
 	"server/internal/database"
 	"server/internal/domain/models"
 	"server/internal/domain/requests"
+	"server/internal/email"
 	"server/internal/log"
 	"server/internal/repositories"
 	"server/internal/services"
@@ -24,6 +25,7 @@ type server struct {
 	repoUsers   repositories.RepoUsers
 	repoBackUp  repositories.BackUpCopyRepo
 	router      Router
+	sender      email.Sender
 	logger      *logrus.Logger
 	config      *config.Config
 	blacklist   *blacklist
@@ -31,7 +33,7 @@ type server struct {
 }
 
 func NewServer(repoLibrary repositories.RepoLibrary, repoWords repositories.RepoWords, repoUsers repositories.RepoUsers, repoBackUp repositories.BackUpCopyRepo,
-	logger *logrus.Logger, config *config.Config) *server {
+	logger *logrus.Logger, sender email.Sender, config *config.Config) *server {
 	return &server{
 		repoLibrary: repoLibrary,
 		repoWords:   repoWords,
@@ -39,6 +41,7 @@ func NewServer(repoLibrary repositories.RepoLibrary, repoWords repositories.Repo
 		repoBackUp:  repoBackUp,
 		router:      &router{mux: mux.NewRouter()},
 		logger:      logger, config: config,
+		sender: sender,
 	}
 }
 
@@ -60,6 +63,7 @@ func (srv *server) initializeRoutes() {
 	srv.blacklist = blackList ///user-update-password
 	srv.router.GetPost("/user-update", srv.jwtAuthentication(srv.updateUserHandler()))
 	srv.router.GetPost("/user-update-password", srv.jwtAuthentication(srv.updateUserPasswordHandler()))
+	srv.router.GetPost("/user-restore-password", srv.contextExpire(srv.restoreUserPasswordHandler()))
 	srv.router.GetPost("/logout", srv.contextExpire(srv.logoutHandler()))
 	srv.router.Get("/user-info", srv.jwtAuthentication(srv.getUserByIdHandler()))
 	//-------TESTS---LEARN--------------------
@@ -96,6 +100,8 @@ func Run() {
 		logger.Fatal(err)
 	}
 
+	sender := email.InitSender(cfg.Email.Email, cfg.Email.Key, cfg.Email.SMTP, cfg.Email.Port)
+
 	go func() {
 		if err := psglDB.PingEveryMinuts(ctx, 30, logger); err != nil {
 			logger.Error(err)
@@ -120,7 +126,7 @@ func Run() {
 		repoUser := repositories.NewRepoUsers(db, logger)
 		repoLibrary := repositories.NewRepoLibrary(db, logger)
 		repoWords := repositories.NewWords(db, logger)
-		userService := services.NewUserService(repoWords, repoUser, repoLibrary, logger)
+		userService := services.NewUserService(repoWords, repoUser, repoLibrary, sender, logger)
 		adminUserReq := requests.CreateUserRequest{
 			Email:    "admin@admin.admin",
 			Name:     "mainName",
@@ -147,7 +153,7 @@ func Run() {
 	repoUser := repositories.NewRepoUsers(db, logger)
 	repoBackup := repositories.NewBackUpCopyRepo("save_copy/library.xlsx", logger)
 
-	srv := NewServer(repoLibrary, repoWords, repoUser, repoBackup, logger, cfg)
+	srv := NewServer(repoLibrary, repoWords, repoUser, repoBackup, logger, sender, cfg)
 
 	srv.initializeRoutes()
 	logger.Infof("Listening HTTP service on %s port", cfg.AppPort)
@@ -294,6 +300,14 @@ func (srv *server) initializeTemplates() error {
 		return appErr
 	}
 	tmplsList[usersInfo] = tmpl
+	//resore_user_password.html
+	tmpl, err = template.ParseFiles("templates/resore_user_password.html", header, footer)
+	if err != nil {
+		appErr := apperrors.InitializeTemplatesErr.AppendMessage(err)
+		srv.logger.Error(appErr)
+		return appErr
+	}
+	tmplsList[restoreUserPassword] = tmpl
 
 	srv.tmpls = tmplsList
 

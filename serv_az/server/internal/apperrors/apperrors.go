@@ -44,6 +44,10 @@ var (
 		Message: "Failed to SetLevelErr",
 		Code:    log,
 	}
+	SendErr = AppError{
+		Message: "Failed to SendErr",
+		Code:    email,
+	}
 	MapMultipartToXLSErr = AppError{
 		Message: "Failed to GetAllFromBackUp",
 		Code:    mapers,
@@ -168,6 +172,10 @@ var (
 	AddWordToLearnRepoErr = AppError{
 		Message: "Failed to AddWordToLearnRepoErr",
 		Code:    repoUsers,
+	}
+	RestoreUserPasswordHandlerErr = AppError{
+		Message: "Failed to restoreUserPasswordHandlerErr",
+		Code:    handlers,
 	}
 	GetAllUsersErr = AppError{
 		Message: "Failed to GetAllUsersErr",

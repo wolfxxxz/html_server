@@ -2,14 +2,17 @@ package services
 
 import (
 	"context"
+	"math/rand"
 	"server/internal/apperrors"
 	"server/internal/domain/mappers"
 	"server/internal/domain/models"
 	"server/internal/domain/requests"
 	"server/internal/domain/responses"
+	"server/internal/email"
 	"server/internal/repositories"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
@@ -19,11 +22,54 @@ type UserService struct {
 	repoWords   repositories.RepoWords
 	repoUser    repositories.RepoUsers
 	repoLibrary repositories.RepoLibrary
+	sender      email.Sender
 	log         *logrus.Logger
 }
 
-func NewUserService(repoWords repositories.RepoWords, userRepo repositories.RepoUsers, repoLibrary repositories.RepoLibrary, log *logrus.Logger) *UserService {
-	return &UserService{repoWords: repoWords, repoUser: userRepo, repoLibrary: repoLibrary, log: log}
+func NewUserService(
+	repoWords repositories.RepoWords,
+	userRepo repositories.RepoUsers,
+	repoLibrary repositories.RepoLibrary,
+	sender email.Sender,
+	log *logrus.Logger) *UserService {
+	return &UserService{
+		repoWords:   repoWords,
+		repoUser:    userRepo,
+		repoLibrary: repoLibrary,
+		sender:      sender,
+		log:         log}
+}
+
+// this function has a problem - we can change password for every user if we know his email
+// but this is only a sample
+func (us *UserService) RestoreUserPassword(ctx context.Context, email string) error {
+	user, err := us.repoUser.GetUserByEmail(ctx, email)
+	if err != nil {
+		us.log.Error(err)
+		return err
+	}
+
+	us.log.Infof(user.ID.String())
+
+	newPass := randomPassword()
+	err = us.sender.Send(email, "restore password translator", newPass)
+	if err != nil {
+		us.log.Error(err)
+		return err
+	}
+
+	userHashPassword, err := hashPassword(newPass)
+	if err != nil {
+		us.log.Error(err)
+	}
+
+	err = us.repoUser.UpdateUserPasswordById(ctx, user.ID.String(), userHashPassword)
+	if err != nil {
+		us.log.Error(err)
+		return err
+	}
+
+	return nil
 }
 
 func (us *UserService) CreateUser(ctx context.Context, userReq *requests.CreateUserRequest) (*responses.CreateUserResponse, error) {
@@ -49,7 +95,6 @@ func (us *UserService) CreateUser(ctx context.Context, userReq *requests.CreateU
 	}
 
 	user.ID = &userUUID
-	us.log.Error("GET ALL WORDS--------------------------------------------------------")
 	words, err := us.repoWords.GetAllWords() //repoLibrary.GetAllWords()
 	if err != nil {
 		us.log.Error(err)
@@ -57,29 +102,15 @@ func (us *UserService) CreateUser(ctx context.Context, userReq *requests.CreateU
 	}
 
 	if len(words) == 0 {
-		us.log.Info("Admin has been created")
 		respCreateUser := &responses.CreateUserResponse{UserId: user.ID.String()}
 		return respCreateUser, nil
 	}
 
-	//words := mappers.MapLibraryToWords(library)
-	//new one limit
-
-	//user.Words = wordsForRequest
-
-	us.log.Error("ADD WORDS TO USER--------------------------------------------------------")
-	err = us.repoUser.AddWordsToUser(ctx, user, words) // UpdateUser(ctx, user)
+	err = us.repoUser.AddWordsToUser(ctx, user, words)
 	if err != nil {
 		return nil, err
 	}
-	// old one
-	/*
-		user.Words = words
-		err = us.repoUser.UpdateUser(ctx, user)
-		if err != nil {
-			return nil, err
-		}
-	*/
+
 	respCreateUser := &responses.CreateUserResponse{UserId: user.ID.String()}
 	return respCreateUser, nil
 }
@@ -266,4 +297,21 @@ func (us *UserService) DeleteLearnFromUserById(ctx context.Context, userID, word
 
 func (us *UserService) GetAllUsers(ctx context.Context) ([]*models.User, error) {
 	return us.repoUser.GetAllUsers(ctx)
+}
+
+func randomPassword() string {
+	source := rand.NewSource(time.Now().UnixNano())
+	random := rand.New(source)
+
+	const (
+		chars          = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+		passwordLength = 7
+	)
+
+	password := make([]byte, passwordLength)
+	for i := range password {
+		password[i] = chars[random.Intn(len(chars))]
+	}
+
+	return string(password)
 }

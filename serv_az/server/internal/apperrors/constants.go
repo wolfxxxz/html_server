@@ -13,4 +13,5 @@ const (
 	services    = "SERVICES_ERR"
 	mapers      = "MAPPERS_ERR"
 	server      = "SERVER_ERR"
+	email       = "EMAIL_Err"
 )

@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"server/internal/apperrors"
 	"server/internal/domain/models"
+	"server/internal/email"
 	"server/internal/repositories"
 	"server/internal/services"
 	"strconv"
@@ -15,11 +16,12 @@ type Comparer struct {
 	repoWords   repositories.RepoWords
 	repoUser    repositories.RepoUsers
 	repoLibrary repositories.RepoLibrary
+	sender      email.Sender
 	log         *logrus.Logger
 }
 
-func NewComparer(repoWords repositories.RepoWords, userRepo repositories.RepoUsers, repoLibrary repositories.RepoLibrary, log *logrus.Logger) *Comparer {
-	return &Comparer{repoUser: userRepo, repoLibrary: repoLibrary, log: log}
+func NewComparer(repoWords repositories.RepoWords, userRepo repositories.RepoUsers, repoLibrary repositories.RepoLibrary, sender email.Sender, log *logrus.Logger) *Comparer {
+	return &Comparer{repoUser: userRepo, repoLibrary: repoLibrary, sender: sender, log: log}
 }
 
 func (srv Comparer) CompareTestWords(r *http.Request, userID string) error {
@@ -28,7 +30,7 @@ func (srv Comparer) CompareTestWords(r *http.Request, userID string) error {
 		answer := r.FormValue("answer" + strconv.Itoa(i))
 		//srv.log.Infof("word [%v] and answer [%v]", word, answer)
 
-		userService := services.NewUserService(srv.repoWords, srv.repoUser, srv.repoLibrary, srv.log)
+		userService := services.NewUserService(srv.repoWords, srv.repoUser, srv.repoLibrary, srv.sender, srv.log)
 		wordId := strconv.Itoa(word.ID)
 		if srv.compare(word, answer) {
 			//srv.log.Infof("IF COMPARE word [%v] and answer [%v]", word, answer)
@@ -64,7 +66,7 @@ func (srv Comparer) CompareTestWords(r *http.Request, userID string) error {
 
 func (srv Comparer) CompareLearnWords(r *http.Request, userID string) error {
 	words := []*models.Word{}
-	userService := services.NewUserService(srv.repoWords, srv.repoUser, srv.repoLibrary, srv.log)
+	userService := services.NewUserService(srv.repoWords, srv.repoUser, srv.repoLibrary, srv.sender, srv.log)
 	for i, word := range HashTableWordsLearn[userID].Words {
 		answer := r.FormValue("answer" + strconv.Itoa(i))
 		if srv.compareToLoverAndIgnoreSpace(word.English, answer) {

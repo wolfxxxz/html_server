@@ -14,6 +14,7 @@ type Config struct {
 	AppPort  string `required:"true" split_words:"true"`
 	Postgres *PostgresConfig
 	Server   *ServerConfig
+	Email    *EmailConfig
 }
 
 type PostgresConfig struct {
@@ -36,6 +37,13 @@ type ServerConfig struct {
 	TimeoutContext         string `env:"TIMEOUT_CONTEXT"`
 }
 
+type EmailConfig struct {
+	Email string `env:"EMAIL"`
+	Key   string `env:"EMAIL_KEY"`
+	SMTP  string `env:"EMAIL_SMTP"`
+	Port  string `env:"EMAIL_PORT"`
+}
+
 func NewConfig(logger *logrus.Logger) (*Config, error) {
 	err := godotenv.Load(path)
 	if err != nil {
@@ -55,7 +63,13 @@ func NewConfig(logger *logrus.Logger) (*Config, error) {
 		return nil, appErr
 	}
 
-	conf := Config{AppPort: confServer.AppPort, Postgres: confPsql, Server: confServer}
+	confEmail := &EmailConfig{}
+	if err := env.Parse(confEmail); err != nil {
+		appErr := apperrors.EnvConfigParseError.AppendMessage(err)
+		return nil, appErr
+	}
+
+	conf := Config{AppPort: confServer.AppPort, Postgres: confPsql, Server: confServer, Email: confEmail}
 
 	logger.Info("Config has been parsed")
 	return &conf, nil

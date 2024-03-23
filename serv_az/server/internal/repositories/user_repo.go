@@ -61,6 +61,16 @@ func (usr *repoUsers) GetUserByEmail(ctx context.Context, email string) (*models
 		return nil, appErr
 	}
 
+	usr.log.Infof("get where %+v", user)
+
+	if user.ID == nil {
+		appErr := apperrors.GetUserByEmailErr.AppendMessage("user = nil")
+		usr.log.Error(appErr)
+		return nil, appErr
+	}
+
+	//usr.log.Fatal("user !=nil")
+
 	return user, nil
 }
 
