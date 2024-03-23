@@ -13,8 +13,10 @@ type RepoLibrary interface {
 	GetAllWords() ([]*models.Library, error)
 	GetTranslationRus(word string) ([]*models.Library, error)
 	GetTranslationRusLike(word string) ([]*models.Library, error)
+	GetTranslationRusLikeWord(word string) (*models.Library, error)
 	GetTranslationEngl(word string) ([]*models.Library, error)
 	GetTranslationEnglLike(word string) ([]*models.Library, error)
+	GetTranslationEnglLikeWord(word string) (*models.Library, error)
 	InsertWordsLibrary(ctx context.Context, library []*models.Library) error
 	InsertWordLibrary(ctx context.Context, word *models.Library) error
 	UpdateWord(ctx context.Context, word *models.Library) error
@@ -106,6 +108,18 @@ func (rt *repoLibrary) GetTranslationRusLike(word string) ([]*models.Library, er
 	return words, nil
 }
 
+func (rt *repoLibrary) GetTranslationRusLikeWord(word string) (*models.Library, error) {
+	var words *models.Library
+	err := rt.db.Where("russian LIKE ?", "%"+word+"%").Limit(1).Find(&words).Error
+	if err != nil {
+		appErr := apperrors.GetTranslationRusLikeErr.AppendMessage(err)
+		rt.log.Error(appErr)
+		return nil, appErr
+	}
+
+	return words, nil
+}
+
 func (rt *repoLibrary) GetTranslationEngl(word string) ([]*models.Library, error) {
 	var words []*models.Library
 	err := rt.db.Where("english = ?", word).Find(&words).Error
@@ -121,6 +135,18 @@ func (rt *repoLibrary) GetTranslationEngl(word string) ([]*models.Library, error
 func (rt *repoLibrary) GetTranslationEnglLike(word string) ([]*models.Library, error) {
 	var words []*models.Library
 	err := rt.db.Where("english LIKE ?", "%"+word+"%").Find(&words).Error
+	if err != nil {
+		appErr := apperrors.GetTranslationEnglLikeErr.AppendMessage(err)
+		rt.log.Error(appErr)
+		return nil, appErr
+	}
+
+	return words, nil
+}
+
+func (rt *repoLibrary) GetTranslationEnglLikeWord(word string) (*models.Library, error) {
+	var words *models.Library
+	err := rt.db.Where("english LIKE ?", "%"+word+"%").Limit(1).Find(&words).Error
 	if err != nil {
 		appErr := apperrors.GetTranslationEnglLikeErr.AppendMessage(err)
 		rt.log.Error(appErr)

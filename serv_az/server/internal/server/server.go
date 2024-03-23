@@ -56,6 +56,7 @@ func (srv *server) initializeRoutes() {
 	//------------HOME----translate
 	srv.router.Get("/", srv.contextExpire(srv.homeHandler()))
 	srv.router.GetPost("/translate", srv.contextExpire(srv.getTranslationHandler()))
+	srv.router.GetPost("/quick-answer", srv.contextExpire(srv.quickAnswerHandler()))
 	//---------------user-CRUD---------------------------
 	srv.router.GetPost("/registration", srv.contextExpire(srv.createUserHandler()))
 	srv.router.GetPost("/login", srv.contextExpire(srv.loginHandler()))

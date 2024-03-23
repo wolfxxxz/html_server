@@ -5,6 +5,7 @@
 <main class="px-3">
     <h1>Переводчик</h1>
     <form action="/translate" method="post">
+        <p class="lead" id="result"></p>
       <input type="text" name="word" id="word" placeholder="Введите слово на русском или английском" class="form-control"><br>
       <button class="btn btn-warning" id="translate">Перевести</button>
       <div class="p-2">
@@ -27,6 +28,16 @@
             </tbody>
         </table>
         {{ end }}
+        <script>
+            $(document).ready(function() {
+                $('#word').on('input', function() {
+                    var value = $(this).val();
+                    $.get('/quick-answer', { key: value }, function(data) {
+                        $('#result').text(data);
+                    });
+                });
+            });
+        </script>
 
   </form>
 </div>
@@ -35,4 +46,3 @@
 {{ template "footer" }}
 
 {{ end }}
-      

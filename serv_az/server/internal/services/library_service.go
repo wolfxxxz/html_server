@@ -69,6 +69,33 @@ func (ls *LibraryService) GetTranslationByWord(ctx context.Context, translReq st
 	return nil, appErr
 }
 
+func (ls *LibraryService) GetTranslationByPieceOfWord(ctx context.Context, translReq string) (string, error) {
+	capitalizedWord := capitalizeFirstRune(translReq)
+	if isCyrillic(capitalizedWord) {
+		words, err := ls.repoLibrary.GetTranslationRusLikeWord(capitalizedWord)
+		if err != nil {
+			ls.log.Error(err)
+			return "", err
+		}
+
+		return words.Russian, nil
+	}
+
+	if !isCyrillic(capitalizedWord) {
+		words, err := ls.repoLibrary.GetTranslationEnglLikeWord(capitalizedWord)
+		if err != nil {
+			ls.log.Error(err)
+			return "", err
+		}
+
+		return words.English, nil
+	}
+
+	appErr := apperrors.GetTranslationByWordErr.AppendMessage("this word isn't rus or english, try to change your language")
+	ls.log.Error(appErr)
+	return "", appErr
+}
+
 func (ls *LibraryService) UpdateLibraryOldAndNewWordsByMultyFile(ctx context.Context, file *multipart.File) error {
 	fileXLS, err := mappers.MapMultipartToXLS(file)
 	if err != nil {

@@ -27,23 +27,6 @@ func (srv *server) homeHandler() http.HandlerFunc {
 
 func (srv *server) getTranslationHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		/*
-			text := r.URL.Query().Get("text")
-			libServiceFastTr := services.NewLibraryService(srv.repoLibrary, srv.logger)
-			words, err := libServiceFastTr.GetTranslationByWord(r.Context(), &requests.TranslationRequest{Word: text})
-			if err != nil {
-				appErr := err.(*apperrors.AppError)
-				srv.logger.Error(appErr)
-				srv.respondErr(w, appErr)
-				return
-			}
-
-			response := map[string]string{"translation": words[0].English}
-			jsonResponse, _ := json.Marshal(response)
-			w.Header().Set("Content-Type", "application/json")
-			w.Write(jsonResponse)
-		*/
-
 		if r.Method == http.MethodGet {
 			err := srv.tmpls[translate].ExecuteTemplate(w, translate, nil)
 			if err != nil {
@@ -92,6 +75,20 @@ func (srv *server) getTranslationHandler() http.HandlerFunc {
 				return
 			}
 		}
+	}
+}
+
+func (srv *server) quickAnswerHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		key := r.URL.Query().Get("key")
+		libService := services.NewLibraryService(srv.repoLibrary, srv.repoWords, srv.repoBackUp, srv.logger)
+		words, err := libService.GetTranslationByPieceOfWord(r.Context(), key)
+		if err != nil {
+			srv.logger.Error()
+			return
+		}
+
+		w.Write([]byte(words))
 	}
 }
 
