@@ -1,0 +1,29 @@
+{{ define "learn" }}
+
+{{ template "header" }}
+    
+<main class="px-3">
+    <h1>Учить слова</h1>
+    <p class="lead">Можно подглядывать во вкладку ТЕСТ.</p> <!-- указать элемент -->
+    <div class="btn btn-warning">
+        <h1>Learn words</h1>
+        {{ if not .LearnPassed}}
+        <form action="/learn" method="POST">
+            {{ range $index, $word := .Words }}
+            <div>
+                <label class="info">{{ $word.PartsOfSpeech}}//{{ $word.Theme}}</label><br>
+                <label for="word{{ $index }}">{{ $word.Russian }}</label>
+                <input type="text" id="word{{ $index }}" name="answer{{ $index }}" required>
+            </div>
+            {{ end }}
+            <input type="submit" value="Проверить">
+        {{ else }}
+            <h2>Поздравляю</h2>
+        {{ end }}
+        </form>
+    </div>
+</main>
+
+{{ template "footer" }}
+
+{{ end }}

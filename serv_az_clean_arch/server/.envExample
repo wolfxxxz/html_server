@@ -1,0 +1,22 @@
+APP_PORT: "8081"
+LOGGER_LEVEL: "info"
+HOST: "host"
+
+SQL_HOST: "db.example.net"
+SQL_PORT: "3355"
+SQL_TYPE: "postgres"
+USER_NAME: "username"
+PASSWORD: "password"
+DB_NAME: "dbname"
+
+TIME_ZONE: "EUROPE/KYIV"
+TIMEOUT_QUERY: "15"
+SECRET_KEY: "secret"
+EXPIRATION_JWT_SECONDS: "18000"
+TIMEOUT_CONTEXT: "600"
+
+EMAIL: "user@gmail.com"
+EMAIL_KEY: "google_app_password"
+EMAIL_SMTP: "smtp.gmail.com"
+EMAIL_PORT: "587"
+

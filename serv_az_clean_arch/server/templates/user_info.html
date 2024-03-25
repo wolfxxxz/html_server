@@ -1,0 +1,30 @@
+{{ define "user_info" }}
+
+{{ template "header" }}
+    
+<main class="px-3">
+    <h1>Ваша информация</h1>
+    <p class="lead"></p>
+
+    <div class="nav-custom">
+        <!--<p class="lead"> ID        {{ .ID }} </p>-->
+        <p class="lead"> Email     {{ .Email }} </p>
+        <p class="lead"> Name      {{ .Name }} </p>
+        <p class="lead"> Last Name {{ .LastName }} </p>
+        <p class="lead"> Role      {{ .Role }} </p>
+        <a class="home-link" href="/user-update">Хотите изменить ваши данные?</a>
+        <a class="home-link" href="/user-update-password">Хотите изменить ваш пароль?</a>
+        {{ if eq .Role "admin"}}
+        <a class="home-link" href="/library-update">Обновить базу данных</a>
+        <a class="home-link" href="/library-download" download>Скачать базу данных</a>
+        <a class="home-link" href="/info-users" >Показать всех пользователей</a>
+        {{ end }}
+    </div>
+</main>
+
+{{ template "footer" }}
+
+{{ end }}
+
+"/user-update-password"
+"/user-restore-password"
