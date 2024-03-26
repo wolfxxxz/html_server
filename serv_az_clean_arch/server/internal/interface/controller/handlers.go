@@ -1,21 +1,33 @@
 package controller
 
 import (
+	"io"
 	"net/http"
 	"server/internal/apperrors"
 	"server/internal/config"
 	"server/internal/domain/models"
 	"server/internal/domain/requests"
+	"server/internal/infrastructure/datastore"
+	"server/internal/infrastructure/middleware"
 	"server/internal/infrastructure/webtemplate.go"
+	"server/internal/usercase/comparer"
 	"server/internal/usercase/interactor"
+	"strings"
 
 	"github.com/labstack/echo"
 	"github.com/sirupsen/logrus"
 )
 
+const (
+	contextKeyRole string = "role"
+	contextKeyID   string = "id"
+)
+
 type handleController struct {
+	comparer          comparer.Comparer
 	libraryInteractor interactor.LibraryInteractor
 	userInteractor    interactor.UserInteractor
+	hashDB            *datastore.HashDB
 	log               *logrus.Logger
 	config            *config.Config
 	tmpls             *webtemplate.WebTemplates
@@ -26,10 +38,23 @@ type HandleController interface {
 	GetTranslationHandler(c echo.Context) error
 	QuickAnswerHandler(c echo.Context) error
 	CreateUserHandler(c echo.Context) error
+	LoginHandler(c echo.Context) error
+	LogoutHandler(blacklist *middleware.Blacklist) echo.HandlerFunc
+	GetUserByIdHandler(c echo.Context) error
+	RestoreUserPasswordHandler(c echo.Context) error
+	UpdateUserHandler(c echo.Context) error
+	UpdateUserPasswordHandler(c echo.Context) error
+	UpdateLibraryHandler(c echo.Context) error
+	DownloadHandler(c echo.Context) error
+	GetAllUsersHandler(c echo.Context) error
+	TestHandler(c echo.Context) error
+	LearnHandler(c echo.Context) error
+	ThemesHandler(c echo.Context) error
+	TestUniversalHandler(c echo.Context) error
 }
 
-func NewUserController(ui interactor.UserInteractor, li interactor.LibraryInteractor, log *logrus.Logger, confg *config.Config, tmpls *webtemplate.WebTemplates) HandleController {
-	return &handleController{li, ui, log, confg, tmpls}
+func NewHandlersController(comparer comparer.Comparer, ui interactor.UserInteractor, li interactor.LibraryInteractor, hashDB *datastore.HashDB, log *logrus.Logger, confg *config.Config, tmpls *webtemplate.WebTemplates) HandleController {
+	return &handleController{comparer, li, ui, hashDB, log, confg, tmpls}
 }
 
 func (srv *handleController) HomeHandler(c echo.Context) error {
@@ -97,7 +122,7 @@ func (srv *handleController) GetTranslationHandler(c echo.Context) error {
 	return nil
 }
 
-//--------------Responds---------------------------
+//--------------Respons---------------------------
 
 func (srv *handleController) respondErr(w http.ResponseWriter, appErr *apperrors.AppError) {
 	err := srv.tmpls.Templates[errMes].ExecuteTemplate(w, errMes, appErr)
@@ -107,23 +132,21 @@ func (srv *handleController) respondErr(w http.ResponseWriter, appErr *apperrors
 	}
 }
 
-/*
-func (srv *userController) respondRegistrateErr(w http.ResponseWriter, appErr *apperrors.AppError) {
-	err := srv.tmpls[registrate].ExecuteTemplate(w, registrate, appErr)
+func (srv *handleController) respondRegistrateErr(w http.ResponseWriter, appErr *apperrors.AppError) {
+	err := srv.tmpls.Templates[registrate].ExecuteTemplate(w, registrate, appErr)
 	if err != nil {
 		appErr := apperrors.RespondErr.AppendMessage(err)
 		srv.log.Error(appErr)
 	}
 }
 
-func (srv *userController) respondAuthorizateErr(w http.ResponseWriter, appErr *apperrors.AppError) {
-	err := srv.tmpls[registrate].ExecuteTemplate(w, registrate, appErr)
+func (srv *handleController) respondAuthorizateErr(w http.ResponseWriter, appErr *apperrors.AppError) {
+	err := srv.tmpls.Templates[registrate].ExecuteTemplate(w, registrate, appErr)
 	if err != nil {
 		appErr := apperrors.RespondErr.AppendMessage(err)
 		srv.log.Error(appErr)
 	}
 }
-*/
 
 func (srv *handleController) QuickAnswerHandler(c echo.Context) error {
 	key := c.QueryParam("key")
@@ -185,9 +208,85 @@ func (srv *handleController) CreateUserHandler(c echo.Context) error {
 	return nil
 }
 
-/*
-func (srv *userController) getUserByIdHandler(c echo.Context) error {
-	userID, _, ok := srv.getIdANdRoleFromRequest(c.r)
+func (srv *handleController) LoginHandler(c echo.Context) error {
+	if c.Request().Method == http.MethodGet {
+		err := srv.tmpls.Templates[authentification].ExecuteTemplate(c.Response().Writer, authentification, nil)
+		if err != nil {
+			appErr := apperrors.LoginHandlerErr.AppendMessage(err)
+			srv.log.Error(appErr)
+			srv.respondErr(c.Response().Writer, appErr)
+			return appErr
+		}
+	}
+
+	if c.Request().Method == http.MethodPost {
+		email := c.Request().FormValue("email")
+		password := c.Request().FormValue("password")
+
+		loginRequest := &requests.LoginRequest{
+			Password: password,
+			Email:    email,
+		}
+
+		getUserResp, err := srv.userInteractor.SignInUserWithJWT(c.Request().Context(), loginRequest, srv.config.Server.SecretKey, srv.config.Server.ExpirationJWTInSeconds)
+		if err != nil {
+			appErr := err.(*apperrors.AppError)
+			srv.log.Error(appErr)
+			srv.respondErr(c.Response().Writer, appErr)
+			return appErr
+		}
+
+		if err := srv.tmpls.Templates[authentification].ExecuteTemplate(c.Response().Writer, authentification, getUserResp); err != nil {
+			appErr := apperrors.LoginHandlerErr.AppendMessage(err)
+			srv.log.Error(appErr)
+			srv.respondErr(c.Response().Writer, appErr)
+			return appErr
+		}
+
+	}
+
+	return nil
+}
+
+func (srv *handleController) LogoutHandler(blacklist *middleware.Blacklist) echo.HandlerFunc {
+	return func(c echo.Context) error {
+		if c.Request().Method == http.MethodGet {
+			err := srv.tmpls.Templates[logout].ExecuteTemplate(c.Response().Writer, logout, nil)
+			if err != nil {
+				appErr := apperrors.LogoutHandlerErr.AppendMessage(err)
+				srv.log.Error(appErr)
+				srv.respondErr(c.Response().Writer, appErr)
+				return appErr
+			}
+		}
+
+		if c.Request().Method == http.MethodPost {
+			cookies := c.Request().Cookies()
+			var token string
+			for _, cookie := range cookies {
+				if cookie.Name == "user_token_translator" {
+					token = cookie.Value
+				}
+			}
+
+			if token == "" {
+				appErr := apperrors.LogoutHandlerErr.AppendMessage("there is nothing to blacklist")
+				srv.log.Error(appErr)
+				srv.respondErr(c.Response().Writer, appErr)
+				return appErr
+			}
+
+			blacklist.AddToken(token)
+			http.Redirect(c.Response().Writer, c.Request(), "/", http.StatusSeeOther)
+			return nil
+		}
+
+		return nil
+	}
+}
+
+func (srv *handleController) GetUserByIdHandler(c echo.Context) error {
+	userID, _, ok := srv.getIdANdRoleFromRequest(c)
 	if !ok {
 		appErr := apperrors.GetUserByIdHandlerErr.AppendMessage("UserIdErr")
 		srv.log.Error(appErr)
@@ -195,8 +294,7 @@ func (srv *userController) getUserByIdHandler(c echo.Context) error {
 		return appErr
 	}
 
-	userService := services.NewUserService(srv.repoWords, srv.repoUsers, srv.repoLibrary, srv.sender, srv.logger)
-	user, err := userService.GetUserById(c.r.Context(), userID)
+	user, err := srv.userInteractor.GetUserById(c.Request().Context(), userID)
 	if err != nil {
 		appErr := err.(*apperrors.AppError)
 		srv.log.Error(appErr)
@@ -204,8 +302,8 @@ func (srv *userController) getUserByIdHandler(c echo.Context) error {
 		return appErr
 	}
 
-	hashTableUsers[userID] = user
-	err = srv.tmpls[userInfo].ExecuteTemplate(c.Response().Writer, userInfo, user)
+	srv.hashDB.DB[userID] = user
+	err = srv.tmpls.Templates[userInfo].ExecuteTemplate(c.Response().Writer, userInfo, user)
 	if err != nil {
 		appErr := apperrors.GetUserByIdHandlerErr.AppendMessage(err)
 		srv.log.Error(appErr)
@@ -213,87 +311,13 @@ func (srv *userController) getUserByIdHandler(c echo.Context) error {
 		return appErr
 	}
 
+	return nil
 }
 
-func (srv *userController) logoutHandler(c echo.Context) error {
-	if c.r.Method == http.MethodGet {
-		err := srv.tmpls[logout].ExecuteTemplate(w, logout, nil)
-		if err != nil {
-			appErr := apperrors.LogoutHandlerErr.AppendMessage(err)
-			srv.log.Error(appErr)
-			srv.respondErr(c.Response().Writer, appErr)
-			return appErr
-		}
-	}
+func (srv *handleController) RestoreUserPasswordHandler(c echo.Context) error {
 
-	if c.r.Method == http.MethodPost {
-		cookies := c.r.Cookies()
-		var token string
-		for _, cookie := range cookies {
-			if cookie.Name == "user_token_translator" {
-				token = cookie.Value
-			}
-		}
-
-		if token == "" {
-			appErr := apperrors.LogoutHandlerErr.AppendMessage("there is nothing to blacklist")
-			srv.log.Error(appErr)
-			srv.respondErr(c.Response().Writer, appErr)
-			return appErr
-		}
-
-		srv.blacklist.AddToken(token)
-		http.Redirect(w, r, "/", http.StatusSeeOther)
-		return nil
-	}
-
-}
-
-func (srv *userController) loginHandler(c echo.Context) error {
-	if c.r.Method == http.MethodGet {
-		err := srv.tmpls[authentification].ExecuteTemplate(w, authentification, nil)
-		if err != nil {
-			appErr := apperrors.LoginHandlerErr.AppendMessage(err)
-			srv.log.Error(appErr)
-			srv.respondErr(c.Response().Writer, appErr)
-			return appErr
-		}
-	}
-
-	if r.Method == http.MethodPost {
-		email := c.r.FormValue("email")
-		password := c.r.FormValue("password")
-
-		userService := services.NewUserService(srv.repoWords, srv.repoUsers, srv.repoLibrary, srv.sender, srv.logger)
-		loginRequest := &requests.LoginRequest{
-			Password: password,
-			Email:    email,
-		}
-
-		getUserResp, err := userService.SignInUserWithJWT(r.Context(), loginRequest, srv.config.Server.SecretKey, srv.config.Server.ExpirationJWTInSeconds)
-		if err != nil {
-			appErr := err.(*apperrors.AppError)
-			srv.log.Error(appErr)
-			srv.respondErr(c.Response().Writer, appErr) //--------------------------------------------------------------
-			return appErr
-		}
-
-		if err := srv.tmpls[authentification].ExecuteTemplate(w, authentification, getUserResp); err != nil {
-			appErr := apperrors.LoginHandlerErr.AppendMessage(err)
-			srv.log.Error(appErr)
-			srv.respondErr(c.Response().Writer, appErr)
-			return appErr
-		}
-
-	}
-}
-
-
-func (srv *userController) restoreUserPasswordHandler(c echo.Context) error {
-	userService := services.NewUserService(srv.repoWords, srv.repoUsers, srv.repoLibrary, srv.sender, srv.logger)
-
-	if c.r.Method == http.MethodGet {
-		err := srv.tmpls[restoreUserPassword].ExecuteTemplate(c.Response().Writer, restoreUserPassword, nil)
+	if c.Request().Method == http.MethodGet {
+		err := srv.tmpls.Templates[restoreUserPassword].ExecuteTemplate(c.Response().Writer, restoreUserPassword, nil)
 		if err != nil {
 			appErr := apperrors.UpdateUserHandlerErr.AppendMessage(err)
 			srv.log.Error(appErr)
@@ -302,10 +326,10 @@ func (srv *userController) restoreUserPasswordHandler(c echo.Context) error {
 		}
 	}
 
-	if c.r.Method == http.MethodPost {
-		email := c.r.FormValue("email")
+	if c.Request().Method == http.MethodPost {
+		email := c.Request().FormValue("email")
 
-		err := userService.RestoreUserPassword(c.r.Context(), email)
+		err := srv.userInteractor.RestoreUserPassword(c.Request().Context(), email)
 		if err != nil {
 			appErr := err.(*apperrors.AppError)
 			srv.log.Error(appErr)
@@ -313,14 +337,14 @@ func (srv *userController) restoreUserPasswordHandler(c echo.Context) error {
 			return appErr
 		}
 
-		http.Redirect(c.Response().Writer, c.r, "/login", http.StatusSeeOther)
+		http.Redirect(c.Response().Writer, c.Request(), "/login", http.StatusSeeOther)
 	}
 
+	return nil
 }
 
-func (srv *userController) updateUserHandler(c echo.Context) error {
-	userService := services.NewUserService(srv.repoWords, srv.repoUsers, srv.repoLibrary, srv.sender, srv.logger)
-	userID, _, ok := srv.getIdANdRoleFromRequest(r)
+func (srv *handleController) UpdateUserHandler(c echo.Context) error {
+	userID, _, ok := srv.getIdANdRoleFromRequest(c)
 	if !ok {
 		appErr := apperrors.UpdateUserHandlerErr.AppendMessage("UserIdErr")
 		srv.log.Error(appErr)
@@ -328,9 +352,9 @@ func (srv *userController) updateUserHandler(c echo.Context) error {
 		return appErr
 	}
 
-	if c.r.Method == http.MethodGet {
-		user := hashTableUsers[userID]
-		err := srv.tmpls[updateUser].ExecuteTemplate(w, updateUser, user)
+	if c.Request().Method == http.MethodGet {
+		user := srv.hashDB.DB[userID]
+		err := srv.tmpls.Templates[updateUser].ExecuteTemplate(c.Response().Writer, updateUser, user)
 		if err != nil {
 			appErr := apperrors.UpdateUserHandlerErr.AppendMessage(err)
 			srv.log.Error(appErr)
@@ -339,12 +363,12 @@ func (srv *userController) updateUserHandler(c echo.Context) error {
 		}
 	}
 
-	if r.Method == http.MethodPost {
-		email := c.r.FormValue("email")
-		name := c.r.FormValue("name")
-		lastName := c.r.FormValue("last-name")
-		password := c.r.FormValue("password")
-		role := c.r.FormValue("role")
+	if c.Request().Method == http.MethodPost {
+		email := c.Request().FormValue("email")
+		name := c.Request().FormValue("name")
+		lastName := c.Request().FormValue("last-name")
+		password := c.Request().FormValue("password")
+		role := c.Request().FormValue("role")
 		//about := r.FormValue("about")
 
 		createUserRequest := &requests.CreateUserRequest{
@@ -355,58 +379,58 @@ func (srv *userController) updateUserHandler(c echo.Context) error {
 			Role:     role,
 		}
 
-		user := hashTableUsers[userID]
-		err := userService.UpdateUserById(r.Context(), user, createUserRequest)
+		user := srv.hashDB.DB[userID]
+		err := srv.userInteractor.UpdateUserById(c.Request().Context(), user, createUserRequest)
 		if err != nil {
 			appErr := err.(*apperrors.AppError)
 			srv.log.Error(appErr)
-			srv.respondErr(w, appErr)
-			return
+			srv.respondErr(c.Response().Writer, appErr)
+			return nil
 		}
 
-		if err := srv.tmpls[registration].ExecuteTemplate(w, registration, createUserRequest); err != nil {
+		if err := srv.tmpls.Templates[registration].ExecuteTemplate(c.Response().Writer, registration, createUserRequest); err != nil {
 			appErr := apperrors.UpdateUserHandlerErr.AppendMessage(err)
 			srv.log.Error(appErr)
-			srv.respondErr(w, appErr)
-			return
+			srv.respondErr(c.Response().Writer, appErr)
+			return nil
 		}
 	}
 
+	return nil
 }
 
-func (srv *userController) updateUserPasswordHandler(c echo.Context) error {
-	userService := services.NewUserService(srv.repoWords, srv.repoUsers, srv.repoLibrary, srv.sender, srv.logger)
-	userID, _, ok := srv.getIdANdRoleFromRequest(r)
+func (srv *handleController) UpdateUserPasswordHandler(c echo.Context) error {
+	userID, _, ok := srv.getIdANdRoleFromRequest(c)
 	if !ok {
 		appErr := apperrors.UpdateUserPasswordHandlerErr.AppendMessage("UserIdErr")
 		srv.log.Error(appErr)
-		srv.respondErr(w, appErr)
-		return
+		srv.respondErr(c.Response().Writer, appErr)
+		return nil
 	}
 
-	if r.Method == http.MethodGet {
-		user := hashTableUsers[userID]
-		err := srv.tmpls[updateUserPassword].ExecuteTemplate(w, updateUserPassword, user)
+	if c.Request().Method == http.MethodGet {
+		user := srv.hashDB.DB[userID]
+		err := srv.tmpls.Templates[updateUserPassword].ExecuteTemplate(c.Response().Writer, updateUserPassword, user)
 		if err != nil {
 			appErr := apperrors.UpdateUserPasswordHandlerErr.AppendMessage(err)
 			srv.log.Error(appErr)
-			srv.respondErr(w, appErr)
-			return
+			srv.respondErr(c.Response().Writer, appErr)
+			return nil
 		}
 	}
 
-	if r.Method == http.MethodPost {
-		oldPass := r.FormValue("old_password")
-		newPass := r.FormValue("new_password")
-		newPassSecond := r.FormValue("new_password_second")
+	if c.Request().Method == http.MethodPost {
+		oldPass := c.Request().FormValue("old_password")
+		newPass := c.Request().FormValue("new_password")
+		newPassSecond := c.Request().FormValue("new_password_second")
 
-		user := hashTableUsers[userID]
-		err := userService.UpdateUserPasswordById(r.Context(), user, oldPass, newPass, newPassSecond)
+		user := srv.hashDB.DB[userID]
+		err := srv.userInteractor.UpdateUserPasswordById(c.Request().Context(), user, oldPass, newPass, newPassSecond)
 		if err != nil {
 			appErr := err.(*apperrors.AppError)
 			srv.log.Error(appErr)
-			srv.respondErr(w, appErr)
-			return
+			srv.respondErr(c.Response().Writer, appErr)
+			return nil
 		}
 
 		createUserRequest := &requests.CreateUserRequest{
@@ -417,36 +441,39 @@ func (srv *userController) updateUserPasswordHandler(c echo.Context) error {
 			Role:     user.Role,
 		}
 
-		if err := srv.tmpls[registration].ExecuteTemplate(w, registration, createUserRequest); err != nil {
+		if err := srv.tmpls.Templates[registration].ExecuteTemplate(c.Response().Writer, registration, createUserRequest); err != nil {
 			appErr := apperrors.UpdateUserPasswordHandlerErr.AppendMessage(err)
 			srv.log.Error(appErr)
-			srv.respondErr(w, appErr)
-			return
+			srv.respondErr(c.Response().Writer, appErr)
+			return nil
 		}
 	}
 
+	return nil
+
 }
 
+// -------------------------doesn't work---------------------------
+
 // ----------------tests------------------------
-func (srv *userController) testHandler(c echo.Context) error {
-	userID, _, ok := srv.getIdANdRoleFromRequest(r)
+func (srv *handleController) TestHandler(c echo.Context) error {
+	userID, _, ok := srv.getIdANdRoleFromRequest(c)
 	if !ok {
 		appErr := apperrors.TestHandlerErr.AppendMessage("UserIdErr")
 		srv.log.Error(appErr)
-		srv.respondErr(w, appErr)
-		return
+		srv.respondErr(c.Response().Writer, appErr)
+		return nil
 	}
 
-	userService := services.NewUserService(srv.repoWords, srv.repoUsers, srv.repoLibrary, srv.sender, srv.logger)
 	getWordsByUsIdAndLimitRequest := &requests.GetWordsByUsIdAndLimitRequest{ID: userID, Limit: "5"}
 
-	if r.Method == http.MethodGet {
-		words, err := userService.GetWordsByUsIdAndLimit(r.Context(), getWordsByUsIdAndLimitRequest)
+	if c.Request().Method == http.MethodGet {
+		words, err := srv.userInteractor.GetWordsByUsIdAndLimit(c.Request().Context(), getWordsByUsIdAndLimitRequest)
 		if err != nil {
 			appErr := err.(*apperrors.AppError)
 			srv.log.Error(appErr)
-			srv.respondErr(w, appErr)
-			return
+			srv.respondErr(c.Response().Writer, appErr)
+			return nil
 		}
 
 		pageData := &models.TestPageData{
@@ -456,63 +483,62 @@ func (srv *userController) testHandler(c echo.Context) error {
 
 		comparer.HashTableWords[userID] = pageData
 
-		err = srv.tmpls[test].ExecuteTemplate(w, test, pageData)
+		err = srv.tmpls.Templates[test].ExecuteTemplate(c.Response().Writer, test, pageData)
 		if err != nil {
 			appErr := apperrors.TestHandlerErr.AppendMessage(err)
 			srv.log.Error(appErr)
-			srv.respondErr(w, appErr)
-			return
+			srv.respondErr(c.Response().Writer, appErr)
+			return nil
 		}
 	}
 
-	if r.Method == http.MethodPost {
-		err := r.ParseForm()
+	if c.Request().Method == http.MethodPost {
+		err := c.Request().ParseForm()
 		if err != nil {
 			appErr := apperrors.TestHandlerErr.AppendMessage(err)
 			srv.log.Error(appErr)
-			srv.respondErr(w, appErr)
-			return
+			srv.respondErr(c.Response().Writer, appErr)
+			return nil
 		}
 
-		compareServ := comparer.NewComparer(srv.repoWords, srv.repoUsers, srv.repoLibrary, srv.sender, srv.logger)
-		err = compareServ.CompareTestWords(r, userID)
+		err = srv.comparer.CompareTestWords(c.Request(), userID)
 		if err != nil {
 			appErr := apperrors.TestHandlerErr.AppendMessage(err)
 			srv.log.Error(appErr)
-			srv.respondErr(w, appErr)
-			return
+			srv.respondErr(c.Response().Writer, appErr)
+			return nil
 		}
 
-		err = srv.tmpls[test].ExecuteTemplate(w, test, comparer.HashTableWords[userID])
+		err = srv.tmpls.Templates[test].ExecuteTemplate(c.Response().Writer, test, comparer.HashTableWords[userID])
 		if err != nil {
 			appErr := apperrors.TestHandlerErr.AppendMessage(err)
 			srv.log.Error(appErr)
-			srv.respondErr(w, appErr)
-			return
+			srv.respondErr(c.Response().Writer, appErr)
+			return nil
 		}
 	}
 
+	return nil
 }
 
-func (srv *userController) learnHandler(c echo.Context) error {
-	userID, _, ok := srv.getIdANdRoleFromRequest(r)
+func (srv *handleController) LearnHandler(c echo.Context) error {
+	userID, _, ok := srv.getIdANdRoleFromRequest(c)
 	if !ok {
 		appErr := apperrors.LearnHandlerErr.AppendMessage("UserIdErr")
 		srv.log.Error(appErr)
-		srv.respondErr(w, appErr)
-		return
+		srv.respondErr(c.Response().Writer, appErr)
+		return nil
 	}
 
-	userService := services.NewUserService(srv.repoWords, srv.repoUsers, srv.repoLibrary, srv.sender, srv.logger)
 	getWordsByUsIdAndLimitRequest := &requests.GetWordsByUsIdAndLimitRequest{ID: userID, Limit: "5"}
 
-	if r.Method == http.MethodGet {
-		words, err := userService.GetLearnByUsIdAndLimit(r.Context(), getWordsByUsIdAndLimitRequest)
+	if c.Request().Method == http.MethodGet {
+		words, err := srv.userInteractor.GetLearnByUsIdAndLimit(c.Request().Context(), getWordsByUsIdAndLimitRequest)
 		if err != nil {
 			appErr := err.(*apperrors.AppError)
 			srv.log.Error(appErr)
-			srv.respondErr(w, appErr)
-			return
+			srv.respondErr(c.Response().Writer, appErr)
+			return nil
 		}
 
 		pageData := &models.TestPageData{
@@ -520,109 +546,107 @@ func (srv *userController) learnHandler(c echo.Context) error {
 		}
 
 		comparer.HashTableWordsLearn[userID] = pageData
-		err = srv.tmpls[learn].ExecuteTemplate(w, learn, pageData)
+		err = srv.tmpls.Templates[learn].ExecuteTemplate(c.Response().Writer, learn, pageData)
 		if err != nil {
 			appErr := apperrors.LearnHandlerErr.AppendMessage("User ID Err")
 			srv.log.Error(appErr)
-			srv.respondErr(w, appErr)
-			return
+			srv.respondErr(c.Response().Writer, appErr)
+			return nil
 		}
 	}
 
-	if r.Method == http.MethodPost {
-		err := r.ParseForm()
+	if c.Request().Method == http.MethodPost {
+		err := c.Request().ParseForm()
 		if err != nil {
 			appErr := apperrors.LearnHandlerErr.AppendMessage("User ID Err")
 			srv.log.Error(appErr)
-			srv.respondErr(w, appErr)
-			return
+			srv.respondErr(c.Response().Writer, appErr)
+			return nil
 		}
 
-		compareServ := comparer.NewComparer(srv.repoWords, srv.repoUsers, srv.repoLibrary, srv.sender, srv.logger)
-		err = compareServ.CompareLearnWords(r, userID)
+		err = srv.comparer.CompareLearnWords(c.Request(), userID)
 		if err != nil {
 			appErr := apperrors.LearnHandlerErr.AppendMessage("User ID Err")
 			srv.log.Error(appErr)
-			srv.respondErr(w, appErr)
-			return
+			srv.respondErr(c.Response().Writer, appErr)
+			return nil
 		}
 
-		err = srv.tmpls[learn].ExecuteTemplate(w, learn, comparer.HashTableWordsLearn[userID])
+		err = srv.tmpls.Templates[learn].ExecuteTemplate(c.Response().Writer, learn, comparer.HashTableWordsLearn[userID])
 		if err != nil {
 			appErr := apperrors.LearnHandlerErr
 			srv.log.Error(appErr)
-			srv.respondErr(w, &appErr)
-			return
+			srv.respondErr(c.Response().Writer, &appErr)
+			return nil
 		}
 	}
 
+	return nil
 }
 
 //------------------thematic tests--------------------
 
-func (srv *userController) themesHandler(c echo.Context) error {
-	serviceLibrary := services.NewLibraryService(srv.repoLibrary, srv.repoWords, srv.repoBackUp, srv.logger)
-	if r.Method == http.MethodGet {
-		topics, err := serviceLibrary.GetAllTopics()
-		if err != nil {
-			appErr := apperrors.ThemesHandlerErr.AppendMessage(err)
-			srv.log.Error(err)
-			srv.respondErr(w, appErr)
-			return
-		}
+func (srv *handleController) ThemesHandler(c echo.Context) error {
 
-		topicsAndBytes := []struct {
-			TopStr       string
-			TopUnderLine string
-		}{}
-
-		for _, top := range topics {
-			underLine := strings.ReplaceAll(top, " ", "_")
-
-			biStr := struct {
-				TopStr       string
-				TopUnderLine string
-			}{
-				TopStr:       top,
-				TopUnderLine: underLine,
-			}
-
-			topicsAndBytes = append(topicsAndBytes, biStr)
-		}
-
-		err = srv.tmpls[testThematic].ExecuteTemplate(w, testThematic, topicsAndBytes)
-		if err != nil {
-			appErr := apperrors.ThemesHandlerErr.AppendMessage(err)
-			srv.log.Error(err)
-			srv.respondErr(w, appErr)
-			return
-		}
+	topics, err := srv.libraryInteractor.GetAllTopics()
+	if err != nil {
+		appErr := apperrors.ThemesHandlerErr.AppendMessage(err)
+		srv.log.Error(err)
+		srv.respondErr(c.Response().Writer, appErr)
+		return nil
 	}
 
+	topicsAndBytes := []struct {
+		TopStr       string
+		TopUnderLine string
+	}{}
+
+	for _, top := range topics {
+		underLine := strings.ReplaceAll(top, " ", "_")
+
+		biStr := struct {
+			TopStr       string
+			TopUnderLine string
+		}{
+			TopStr:       top,
+			TopUnderLine: underLine,
+		}
+
+		topicsAndBytes = append(topicsAndBytes, biStr)
+	}
+
+	err = srv.tmpls.Templates[testThematic].ExecuteTemplate(c.Response().Writer, testThematic, topicsAndBytes)
+	if err != nil {
+		appErr := apperrors.ThemesHandlerErr.AppendMessage(err)
+		srv.log.Error(err)
+		srv.respondErr(c.Response().Writer, appErr)
+		return nil
+	}
+
+	return nil
 }
 
-func (srv *userController) testUniversalHandler(c echo.Context) error {
-	userID, _, ok := srv.getIdANdRoleFromRequest(r)
+func (srv *handleController) TestUniversalHandler(c echo.Context) error {
+	userID, _, ok := srv.getIdANdRoleFromRequest(c)
 	if !ok {
 		appErr := apperrors.TestUniversalHandlerErr.AppendMessage("UserIdErr")
 		srv.log.Error(appErr)
-		srv.respondErr(w, appErr)
-		return
+		srv.respondErr(c.Response().Writer, appErr)
+		return nil
 	}
 
-	userService := services.NewUserService(srv.repoWords, srv.repoUsers, srv.repoLibrary, srv.sender, srv.logger)
 	getWordsByUsIdAndLimitRequest := &requests.GetWordsByUsIdAndLimitRequest{ID: userID, Limit: "5"}
-	vars := mux.Vars(r)
-	topic := vars["theme"]
+	//vars := mux.Vars(c.Request())
+	topic := c.Param("theme")
 	topicGet := strings.ReplaceAll(topic, "_", " ")
-
-	if r.Method == http.MethodGet {
-		words, err := userService.GetWordsByUserIdAndLimitAndTopic(r.Context(), getWordsByUsIdAndLimitRequest, topicGet)
+	//-------------------------------------------------------------------------------------------------------------------------
+	if c.Request().Method == http.MethodGet {
+		words, err := srv.userInteractor.GetWordsByUserIdAndLimitAndTopic(c.Request().Context(), getWordsByUsIdAndLimitRequest, topicGet)
 		if err != nil {
 			appErr := err.(*apperrors.AppError)
 			srv.log.Error(appErr)
-			srv.respondErr(w, appErr)
-			return
+			srv.respondErr(c.Response().Writer, appErr)
+			return nil
 		}
 
 		pageData := &models.TestPageData{
@@ -634,203 +658,190 @@ func (srv *userController) testUniversalHandler(c echo.Context) error {
 
 		comparer.HashTableWords[userID] = pageData
 
-		err = srv.tmpls[testThematicHandler].ExecuteTemplate(w, testThematicHandler, pageData)
+		err = srv.tmpls.Templates[testThematicHandler].ExecuteTemplate(c.Response().Writer, testThematicHandler, pageData)
 		if err != nil {
 			appErr := apperrors.TestUniversalHandlerErr.AppendMessage(err)
 			srv.log.Error(appErr)
-			srv.respondErr(w, appErr)
-			return
+			srv.respondErr(c.Response().Writer, appErr)
+			return nil
 		}
 	}
 
-	if r.Method == http.MethodPost {
-		err := r.ParseForm()
+	if c.Request().Method == http.MethodPost {
+		err := c.Request().ParseForm()
 		if err != nil {
 			appErr := apperrors.TestUniversalHandlerErr.AppendMessage(err)
 			srv.log.Error(appErr)
-			srv.respondErr(w, appErr)
-			return
+			srv.respondErr(c.Response().Writer, appErr)
+			return nil
 		}
 
-		compareServ := comparer.NewComparer(srv.repoWords, srv.repoUsers, srv.repoLibrary, srv.sender, srv.logger)
-		err = compareServ.CompareTestWords(r, userID)
+		err = srv.comparer.CompareTestWords(c.Request(), userID)
 		if err != nil {
 			appErr := apperrors.TestUniversalHandlerErr.AppendMessage(err)
 			srv.log.Error(appErr)
-			srv.respondErr(w, appErr)
-			return
+			srv.respondErr(c.Response().Writer, appErr)
+			return nil
 		}
 
-		err = srv.tmpls[testThematicHandler].ExecuteTemplate(w, testThematicHandler, comparer.HashTableWords[userID])
+		err = srv.tmpls.Templates[testThematicHandler].ExecuteTemplate(c.Response().Writer, testThematicHandler, comparer.HashTableWords[userID])
 		if err != nil {
 			appErr := apperrors.TestUniversalHandlerErr.AppendMessage(err)
 			srv.log.Error(appErr)
-			srv.respondErr(w, appErr)
-			return
+			srv.respondErr(c.Response().Writer, appErr)
+			return nil
 		}
 	}
 
+	return nil
 }
 
 //------------Update Library role admin----------------------
 
-func (srv *userController) updateLibraryHandler(c echo.Context) error {
-	_, role, ok := srv.getIdANdRoleFromRequest(r)
+func (srv *handleController) UpdateLibraryHandler(c echo.Context) error {
+	_, role, ok := srv.getIdANdRoleFromRequest(c)
 	if !ok {
 		appErr := apperrors.UpdateLibraryHandlerErr.AppendMessage("UserIdErr")
 		srv.log.Error(appErr)
-		srv.respondErr(w, appErr)
-		return
+		srv.respondErr(c.Response().Writer, appErr)
+		return nil
 	}
 
 	if role != "admin" {
 		appErr := apperrors.UpdateLibraryHandlerErr.AppendMessage("ask for help in contacts")
 		srv.log.Error(appErr)
-		srv.respondErr(w, appErr)
-		return
+		srv.respondErr(c.Response().Writer, appErr)
+		return nil
 	}
 
-	if r.Method == http.MethodGet {
-		err := srv.tmpls[updateLib].ExecuteTemplate(w, updateLib, nil)
+	if c.Request().Method == http.MethodGet {
+		err := srv.tmpls.Templates[updateLib].ExecuteTemplate(c.Response().Writer, updateLib, nil)
 		if err != nil {
 			appErr := apperrors.UpdateLibraryHandlerErr.AppendMessage(err)
 			srv.log.Error(appErr)
-			srv.respondErr(w, appErr)
-			return
+			srv.respondErr(c.Response().Writer, appErr)
+			return nil
 		}
 	}
 
-	if r.Method == http.MethodPost {
-		r.ParseMultipartForm(10 << 20) // Размер файла не должен превышать 10 MB
-		file, _, err := r.FormFile("fileToUpload")
+	if c.Request().Method == http.MethodPost {
+		c.Request().ParseMultipartForm(10 << 20) // Размер файла не должен превышать 10 MB
+		file, _, err := c.Request().FormFile("fileToUpload")
 		if err != nil {
 			appErr := apperrors.UpdateLibraryHandlerErr.AppendMessage(err)
 			srv.log.Error(appErr)
-			srv.respondErr(w, appErr)
-			return
+			srv.respondErr(c.Response().Writer, appErr)
+			return nil
 		}
 
 		defer file.Close()
 
-		libraryService := services.NewLibraryService(srv.repoLibrary, srv.repoWords, srv.repoBackUp, srv.logger)
-		err = libraryService.UpdateLibraryOldAndNewWordsByMultyFile(r.Context(), &file)
+		err = srv.libraryInteractor.UpdateLibraryOldAndNewWordsByMultyFile(c.Request().Context(), &file)
 		if err != nil {
 			appErr := err.(*apperrors.AppError)
 			srv.log.Error(appErr)
-			srv.respondErr(w, appErr)
-			return
+			srv.respondErr(c.Response(), appErr)
+			return nil
 		}
 
-		http.Redirect(w, r, "/user-info", http.StatusSeeOther)
+		http.Redirect(c.Response().Writer, c.Request(), "/user-info", http.StatusSeeOther)
 	}
 
+	return nil
 }
 
-func (srv *userController) downloadHandler(c echo.Context) error {
-	_, role, ok := srv.getIdANdRoleFromRequest(r)
+func (srv *handleController) DownloadHandler(c echo.Context) error {
+	_, role, ok := srv.getIdANdRoleFromRequest(c)
 	if !ok {
 		appErr := apperrors.DownloadHandlerErr.AppendMessage("UserIdErr")
 		srv.log.Error(appErr)
-		srv.respondErr(w, appErr)
-		return
+		srv.respondErr(c.Response().Writer, appErr)
+		return nil
 	}
 
 	if role != "admin" {
 		appErr := apperrors.DownloadHandlerErr.AppendMessage("UserIdErr")
 		srv.log.Error(appErr)
-		srv.respondAuthorizateErr(w, appErr)
-		return
+		srv.respondAuthorizateErr(c.Response().Writer, appErr)
+		return nil
 	}
-	libraryService := services.NewLibraryService(srv.repoLibrary, srv.repoWords, srv.repoBackUp, srv.logger)
-	file, err := libraryService.DownloadXLXFromDb()
+	file, err := srv.libraryInteractor.DownloadXLXFromDb()
 	if err != nil {
 		appErr := err.(*apperrors.AppError)
 		srv.log.Error(appErr)
-		return
+		return nil
 	}
 
 	defer file.Close()
 
-	w.Header().Set("Content-Disposition", "attachment; filename=library.xlsx")
-	w.Header().Set("Content-Type", "application/octet-stream")
+	c.Response().Writer.Header().Set("Content-Disposition", "attachment; filename=library.xlsx")
+	c.Response().Writer.Header().Set("Content-Type", "application/octet-stream")
 
-	if _, err := io.Copy(w, file); err != nil {
+	if _, err := io.Copy(c.Response().Writer, file); err != nil {
 		srv.log.Error(err)
-		return
+		return nil
 	}
 
+	return nil
 }
 
-
-func (srv *userController) getAllUsersHandler(c echo.Context) error {
+func (srv *handleController) GetAllUsersHandler(c echo.Context) error {
 	srv.log.Info("getAllUsersHandler started")
-	_, role, ok := srv.getIdANdRoleFromRequest(r)
+	_, role, ok := srv.getIdANdRoleFromRequest(c)
 	if !ok {
 		appErr := apperrors.DownloadHandlerErr.AppendMessage("UserIdErr")
 		srv.log.Error(appErr)
-		srv.respondErr(w, appErr)
-		return
+		srv.respondErr(c.Response().Writer, appErr)
+		return nil
 	}
 
 	if role != "admin" {
 		appErr := apperrors.DownloadHandlerErr.AppendMessage("UserIdErr")
 		srv.log.Error(appErr)
-		srv.respondAuthorizateErr(w, appErr)
-		return
+		srv.respondAuthorizateErr(c.Response().Writer, appErr)
+		return nil
 	}
 
-	userService := services.NewUserService(srv.repoWords, srv.repoUsers, srv.repoLibrary, srv.sender, srv.logger)
-	users, err := userService.GetAllUsers(r.Context())
+	users, err := srv.userInteractor.GetAllUsers(c.Request().Context())
 	if err != nil {
 		appErr := err.(*apperrors.AppError)
 		srv.log.Error(appErr)
-		return
+		return nil
 	}
 
-	err = srv.tmpls[usersInfo].ExecuteTemplate(w, usersInfo, users)
+	err = srv.tmpls.Templates[usersInfo].ExecuteTemplate(c.Response().Writer, usersInfo, users)
 	if err != nil {
 		appErr := apperrors.RespondErr.AppendMessage(err)
 		srv.log.Error(appErr)
 	}
 
 	srv.log.Info("getAllUsersHandler sent tamplates")
-
+	return nil
 }
 
-func (srv *userController) getIdANdRoleFromRequest(r *http.Request) (string, string, bool) {
-	id := r.Context().Value(contextKeyID)
-	if id == nil {
+func (srv *handleController) getIdANdRoleFromRequest(c echo.Context) (string, string, bool) {
+	// err := c.Get("err").(string)
+	// if err != "" {
+	// 	appErr := apperrors.GetIdANdRoleFromRequestErr.AppendMessage(err)
+	// 	srv.log.Error(appErr)
+	// 	return "", "", false
+	// }
+	id := c.Get(contextKeyID).(string)
+	if id == "" {
 		appErr := apperrors.GetIdANdRoleFromRequestErr.AppendMessage("UserIdErr")
 		srv.log.Error(appErr)
 		return "", "", false
 	}
 
-	userID, ok := id.(string)
-	if !ok {
+	role := c.Get(contextKeyRole).(string)
+	if role == "" {
 		appErr := apperrors.GetIdANdRoleFromRequestErr.AppendMessage("UserIdErr")
 		srv.log.Error(appErr)
 		return "", "", false
 	}
 
-	role := r.Context().Value(contextKeyRole)
-	if role == nil {
-		appErr := apperrors.GetIdANdRoleFromRequestErr.AppendMessage("UserIdErr")
-		srv.log.Error(appErr)
-		return "", "", false
-	}
-
-	userRole, ok := role.(string)
-	if !ok {
-		appErr := apperrors.GetIdANdRoleFromRequestErr.AppendMessage("UserRoleErr")
-		srv.log.Error(appErr)
-		return "", "", false
-	}
-
-	return userID, userRole, true
+	return id, role, true
 }
-
-
-
 
 /* drop library and users
 func (srv *server) dropLibrary() http.HandlerFunc { // hasn't been implicit yet

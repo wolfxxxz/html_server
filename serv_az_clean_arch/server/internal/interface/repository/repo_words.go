@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"context"
 	"server/internal/apperrors"
 	"server/internal/domain/models"
 	"server/internal/usercase/repository"
@@ -30,28 +31,7 @@ func (rt *wordsRepository) GetAllWords() ([]*models.Word, error) {
 	return words, nil
 }
 
-/*
-	type RepoWords interface {
-		GetAllWords() ([]*models.Word, error)
-		InsertWords(ctx context.Context, words []*models.Word) error
-		InsertWord(ctx context.Context, word *models.Word) error
-		UpdateWord(ctx context.Context, word *models.Word) error
-		UpdateWords(ctx context.Context, words []*models.Word) error
-		GetAllTopics() ([]string, error)
-	}
-
-	type repoWords struct {
-		db  *gorm.DB
-		log *logrus.Logger
-	}
-
-	func NewWords(db *gorm.DB, log *logrus.Logger) repository.RepoWords {
-		return &repoWords{db: db, log: log}
-	}
-*/
-
-/*
-func (rt *repoWords) InsertWords(ctx context.Context, words []*models.Word) error {
+func (rt *wordsRepository) InsertWords(ctx context.Context, words []*models.Word) error {
 	for _, word := range words {
 		if word == nil {
 			appErr := apperrors.InsertWordsLibraryErr.AppendMessage("lib == nil")
@@ -90,7 +70,7 @@ func (rt *repoWords) InsertWords(ctx context.Context, words []*models.Word) erro
 	return nil
 }
 
-func (rt *repoWords) InsertWord(ctx context.Context, word *models.Word) error {
+func (rt *wordsRepository) InsertWord(ctx context.Context, word *models.Word) error {
 	if word == nil {
 		appErr := apperrors.InsertWordLibraryErr.AppendMessage("lib == nil")
 		rt.log.Error(appErr)
@@ -127,7 +107,7 @@ func (rt *repoWords) InsertWord(ctx context.Context, word *models.Word) error {
 	return nil
 }
 
-func (rt *repoWords) UpdateWords(ctx context.Context, words []*models.Word) error {
+func (rt *wordsRepository) UpdateWords(ctx context.Context, words []*models.Word) error {
 	for _, word := range words {
 		err := rt.UpdateWord(ctx, word)
 		if err != nil {
@@ -139,7 +119,7 @@ func (rt *repoWords) UpdateWords(ctx context.Context, words []*models.Word) erro
 	return nil
 }
 
-func (rt *repoWords) UpdateWord(ctx context.Context, word *models.Word) error {
+func (rt *wordsRepository) UpdateWord(ctx context.Context, word *models.Word) error {
 	result := rt.db.Model(&models.Word{}).Where("id = ?", word.ID).
 		Updates(map[string]interface{}{
 			"english":         word.English,
@@ -163,7 +143,7 @@ func (rt *repoWords) UpdateWord(ctx context.Context, word *models.Word) error {
 	return nil
 }
 
-func (rt *repoWords) GetAllTopics() ([]string, error) {
+func (rt *wordsRepository) GetAllTopics() ([]string, error) {
 	var themes []string
 	err := rt.db.Table("words").Select("DISTINCT(theme)").Pluck("DISTINCT(theme)", &themes).Error
 	if err != nil {
@@ -174,4 +154,3 @@ func (rt *repoWords) GetAllTopics() ([]string, error) {
 
 	return themes, nil
 }
-*/

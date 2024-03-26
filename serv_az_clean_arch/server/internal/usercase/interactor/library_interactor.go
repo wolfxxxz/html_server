@@ -2,22 +2,30 @@ package interactor
 
 import (
 	"context"
+	"mime/multipart"
+	"os"
 	"server/internal/apperrors"
+	"server/internal/domain/mappers"
 	"server/internal/domain/models"
 	"server/internal/usercase/repository"
 )
 
 type libraryInteractor struct {
 	LibraryRepository repository.LibraryRepository
+	WordsRepository   repository.WordsRepository
+	BackupRepository  repository.BackUpCopyRepo
 }
 
 type LibraryInteractor interface {
 	GetTranslationByWord(ctx context.Context, translReq string) ([]*models.Library, error)
 	GetTranslationByPieceOfWord(ctx context.Context, translReq string) (string, error)
+	UpdateLibraryOldAndNewWordsByMultyFile(ctx context.Context, file *multipart.File) error
+	DownloadXLXFromDb() (*os.File, error)
+	GetAllTopics() ([]string, error)
 }
 
-func NewLibraryInteractor(u repository.LibraryRepository) LibraryInteractor {
-	return &libraryInteractor{LibraryRepository: u}
+func NewLibraryInteractor(u repository.LibraryRepository, w repository.WordsRepository, b repository.BackUpCopyRepo) LibraryInteractor {
+	return &libraryInteractor{LibraryRepository: u, WordsRepository: w, BackupRepository: b}
 }
 
 func (ls *libraryInteractor) GetTranslationByWord(ctx context.Context, translReq string) ([]*models.Library, error) {
@@ -88,22 +96,19 @@ func (ls *libraryInteractor) GetTranslationByPieceOfWord(ctx context.Context, tr
 	return "", appErr
 }
 
-/*
-func (ls *LibraryService) UpdateLibraryOldAndNewWordsByMultyFile(ctx context.Context, file *multipart.File) error {
+func (ls *libraryInteractor) UpdateLibraryOldAndNewWordsByMultyFile(ctx context.Context, file *multipart.File) error {
 	fileXLS, err := mappers.MapMultipartToXLS(file)
 	if err != nil {
-		ls.log.Error(err)
 		return err
 	}
 
 	librUpdate := mappers.MapXLStoLibrary(fileXLS)
 
 	for _, word := range librUpdate {
-		err := ls.repoLibrary.UpdateWord(ctx, word)
+		err := ls.LibraryRepository.UpdateWord(ctx, word)
 		if err != nil {
 			if err == &apperrors.UpdateWordRowAffectedErr {
-				ls.log.Info(fmt.Sprintf("insert word %v, ID %v", word.English, word.ID))
-				err := ls.repoLibrary.InsertWordLibrary(ctx, word)
+				err := ls.LibraryRepository.InsertWordLibrary(ctx, word)
 				if err != nil {
 					return err
 				}
@@ -111,24 +116,21 @@ func (ls *LibraryService) UpdateLibraryOldAndNewWordsByMultyFile(ctx context.Con
 				continue
 			}
 
-			ls.log.Error(err)
 			return err
 		}
 	}
 	//
-	err = ls.repoLibrary.UpdateWordsMap()
+	err = ls.LibraryRepository.UpdateWordsMap()
 	if err != nil {
-		ls.log.Error(err)
 		return err
 	}
 
 	wordsUpdate := mappers.MapXLStoWords(fileXLS)
 	for _, word := range wordsUpdate {
-		err := ls.repoWords.UpdateWord(ctx, word)
+		err := ls.WordsRepository.UpdateWord(ctx, word)
 		if err != nil {
 			if err == &apperrors.UpdateWordRowAffectedErr {
-				ls.log.Info(fmt.Sprintf("insert word %v, ID %v", word.English, word.ID))
-				err := ls.repoWords.InsertWord(ctx, word)
+				err := ls.WordsRepository.InsertWord(ctx, word)
 				if err != nil {
 					return err
 				}
@@ -136,7 +138,6 @@ func (ls *LibraryService) UpdateLibraryOldAndNewWordsByMultyFile(ctx context.Con
 				continue
 			}
 
-			ls.log.Error(err)
 			return err
 		}
 	}
@@ -144,27 +145,24 @@ func (ls *LibraryService) UpdateLibraryOldAndNewWordsByMultyFile(ctx context.Con
 	return nil
 }
 
-func (ls *LibraryService) DownloadXLXFromDb() (*os.File, error) {
-	words, err := ls.repoLibrary.GetAllWords()
+func (ls *libraryInteractor) DownloadXLXFromDb() (*os.File, error) {
+	words, err := ls.LibraryRepository.GetAllWords()
 	if err != nil {
-		ls.log.Error(err)
 		return nil, err
 	}
 
-	ls.repoBackup.SaveWordsAsXLSX(words)
-	return ls.repoBackup.OpenFile()
+	ls.BackupRepository.SaveWordsAsXLSX(words)
+	return ls.BackupRepository.OpenFile()
 }
 
-func (ls *LibraryService) GetAllTopics() ([]string, error) {
-	topics, err := ls.repoLibrary.GetAllTopics()
+func (ls *libraryInteractor) GetAllTopics() ([]string, error) {
+	topics, err := ls.LibraryRepository.GetAllTopics()
 	if err != nil {
-		ls.log.Error(err)
 		return nil, err
 	}
 
 	if topics == nil {
 		appErr := apperrors.GetAllTopicsLibServErr.AppendMessage("topics = nil")
-		ls.log.Error(appErr)
 		return nil, appErr
 	}
 
@@ -177,4 +175,3 @@ func (ls *LibraryService) GetAllTopics() ([]string, error) {
 
 	return topicsWithoutWhiteSpace, nil
 }
-*/

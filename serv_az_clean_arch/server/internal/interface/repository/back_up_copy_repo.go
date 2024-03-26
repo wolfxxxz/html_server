@@ -4,6 +4,8 @@ import (
 	"os"
 	"server/internal/apperrors"
 	"server/internal/domain/models"
+	"server/internal/usercase/repository"
+
 	"strconv"
 	"unicode"
 
@@ -11,19 +13,12 @@ import (
 	"github.com/tealeg/xlsx"
 )
 
-type BackUpCopyRepo interface {
-	GetAllWordsFromBackUpXlsx() ([]*models.Library, error)
-	SaveWordsAsXLSX(words []*models.Library) error
-	OpenFile() (*os.File, error)
-	//SaveAllAsJson(s []*models.Library) error
-}
-
 type backUpCopyRepo struct {
 	copyPathXLSX string
 	log          *logrus.Logger
 }
 
-func NewBackUpCopyRepo(copyPathXLSX string, log *logrus.Logger) BackUpCopyRepo {
+func NewBackUpCopyRepo(copyPathXLSX string, log *logrus.Logger) repository.BackUpCopyRepo {
 	return &backUpCopyRepo{copyPathXLSX: copyPathXLSX, log: log}
 }
 

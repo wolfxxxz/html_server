@@ -5,32 +5,16 @@ import (
 	"fmt"
 	"server/internal/apperrors"
 	"server/internal/domain/models"
+	"server/internal/domain/requests"
 	"server/internal/usercase/repository"
 	"sort"
 	"strings"
 
+	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
 	"gorm.io/gorm"
 )
 
-/*
-	type RepoUsers interface {
-		UpdateUser(ctx context.Context, user *models.User) error
-		UpdateUserPasswordById(ctx context.Context, userID, newPass string) error
-		UpdateUserById(ctx context.Context, userReq *requests.CreateUserRequest) error
-		CreateUser(ctx context.Context, user *models.User) (string, error)
-		GetWordsByIDAndLimit(ctx context.Context, id *uuid.UUID, limit int) ([]*models.Word, error)
-		GetLearnByIDAndLimit(ctx context.Context, id *uuid.UUID, limit int) ([]*models.Word, error)
-		GetUserByEmail(ctx context.Context, email string) (*models.User, error)
-		GetUserById(ctx context.Context, id *uuid.UUID) (*models.User, error)
-		MoveWordToLearned(ctx context.Context, user *models.User, word *models.Word) error
-		AddWordToLearn(ctx context.Context, user *models.User, word *models.Word) error
-		DeleteLearnWordFromUserByWordID(ctx context.Context, user *models.User, word *models.Word) error
-		GetWordsByUserIdAndLimitAndTopic(ctx context.Context, id *uuid.UUID, limit int, topic string) ([]*models.Word, error)
-		GetAllUsers(ctx context.Context) ([]*models.User, error)
-		AddWordsToUser(ctx context.Context, user *models.User, words []*models.Word) error
-	}
-*/
 type userRepository struct {
 	log *logrus.Logger
 	db  *gorm.DB
@@ -40,11 +24,6 @@ func NewUserRepository(db *gorm.DB, log *logrus.Logger) repository.UserRepositor
 	return &userRepository{db: db, log: log}
 }
 
-/*
-	func NewRepoUsers(db *gorm.DB, log *logrus.Logger) RepoUsers {
-		return &repoUsers{db: db, log: log}
-	}
-*/
 func (usr *userRepository) CreateUser(ctx context.Context, user *models.User) (string, error) {
 	if user == nil {
 		appErr := apperrors.CreateUserErr.AppendMessage("user is nil")
@@ -111,20 +90,6 @@ func (usr *userRepository) AddWordsToUser(ctx context.Context, user *models.User
 	return nil
 }
 
-/*
-
-func (usr *userRepository) GetUserById(ctx context.Context, id *uuid.UUID) (*models.User, error) {
-	var user *models.User
-	err := usr.db.Where("id = ?", id).Find(&user).Error
-	if err != nil {
-		appErr := apperrors.GetUserByIdErr.AppendMessage(err)
-		usr.log.Error(appErr)
-		return nil, appErr
-	}
-
-	return user, nil
-}
-
 func (usr *userRepository) GetUserByEmail(ctx context.Context, email string) (*models.User, error) {
 	var user *models.User
 	err := usr.db.Where("email = ?", email).Find(&user).Error
@@ -147,7 +112,18 @@ func (usr *userRepository) GetUserByEmail(ctx context.Context, email string) (*m
 	return user, nil
 }
 
-/*
+func (usr *userRepository) GetUserById(ctx context.Context, id *uuid.UUID) (*models.User, error) {
+	var user *models.User
+	err := usr.db.Where("id = ?", id).Find(&user).Error
+	if err != nil {
+		appErr := apperrors.GetUserByIdErr.AppendMessage(err)
+		usr.log.Error(appErr)
+		return nil, appErr
+	}
+
+	return user, nil
+}
+
 func (usr *userRepository) MoveWordToLearned(ctx context.Context, user *models.User, word *models.Word) error {
 	tx := usr.db.Begin()
 	if tx.Error != nil {
@@ -194,7 +170,6 @@ func (usr *userRepository) MoveWordToLearned(ctx context.Context, user *models.U
 
 	return nil
 }
-
 
 func (usr *userRepository) AddWordToLearn(ctx context.Context, user *models.User, word *models.Word) error {
 	err := usr.db.Model(user).Association("Learn").Append(word)
@@ -273,8 +248,6 @@ func (usr *userRepository) UpdateUserPasswordById(ctx context.Context, userID, n
 
 	return nil
 }
-
-
 
 func (usr *userRepository) GetWordsByIDAndLimit(ctx context.Context, id *uuid.UUID, limit int) ([]*models.Word, error) {
 	var user *models.User
@@ -355,4 +328,3 @@ func (usr *userRepository) GetAllUsers(ctx context.Context) ([]*models.User, err
 
 	return users, nil
 }
-*/

@@ -21,5 +21,3 @@ const (
 	usersInfo           = "users_info"
 	restoreUserPassword = "restore_user_password"
 )
-
-//var hashTableUsers = make(map[string]*models.User)

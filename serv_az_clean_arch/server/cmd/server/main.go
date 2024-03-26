@@ -7,6 +7,7 @@ import (
 	"server/internal/domain/requests"
 	"server/internal/domain/validator"
 	"server/internal/infrastructure/datastore"
+	"server/internal/infrastructure/email"
 	"server/internal/infrastructure/router"
 	"server/internal/infrastructure/webtemplate.go"
 	"server/internal/interface/repository"
@@ -41,14 +42,13 @@ func main() {
 		logger.Fatal(err)
 	}
 
-	//sender := email.InitSender(cfg.Email.Email, cfg.Email.Key, cfg.Email.SMTP, cfg.Email.Port)
-
 	go func() {
 		if err := psglDB.PingEveryMinuts(ctx, 30, logger); err != nil {
 			logger.Error(err)
 		}
 	}()
 
+	sender := email.InitSender(cfg.Email.Email, cfg.Email.Key, cfg.Email.SMTP, cfg.Email.Port)
 	if !db.Migrator().HasTable(&models.Library{}) {
 		err = db.AutoMigrate(&models.Library{})
 		if err != nil {
@@ -66,9 +66,7 @@ func main() {
 
 		repoUser := repository.NewUserRepository(db, logger)
 		repoWords := repository.NewWordsRepository(db, logger)
-
-		usInteractor := interactor.NewUserInteractor(repoUser, repoWords)
-
+		usInteractor := interactor.NewUserInteractor(repoUser, repoWords, sender)
 		adminUserReq := requests.CreateUserRequest{
 			Email:    "admin@admin.admin",
 			Name:     "mainName",
@@ -76,6 +74,7 @@ func main() {
 			Password: cfg.Postgres.Password,
 			Role:     "admin",
 		}
+
 		_, err = usInteractor.CreateUser(ctx, &adminUserReq)
 		if err != nil {
 			logger.Fatal(err)
@@ -96,7 +95,9 @@ func main() {
 		logger.Fatal(err)
 	}
 
-	r := registry.NewRegistry(db, logger, cfg, tmpls)
+	hashDB := datastore.InitHashDB()
+
+	r := registry.NewRegistry(db, hashDB, logger, cfg, tmpls, sender)
 	e := echo.New()
 	e.Validator = validator.NewValidator(logger)
 
