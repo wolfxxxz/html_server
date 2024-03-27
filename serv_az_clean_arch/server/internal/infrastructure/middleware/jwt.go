@@ -1,14 +1,21 @@
 package middleware
 
 import (
+	"encoding/json"
+	"net/http"
 	"server/internal/apperrors"
+	"server/internal/infrastructure/webtemplate.go"
 
 	"github.com/golang-jwt/jwt"
 	"github.com/labstack/echo"
 	"github.com/labstack/gommon/log"
 )
 
-func JWTAuthentication(jc *JWTMiddlewareConfig, blacklist *Blacklist) echo.MiddlewareFunc {
+const (
+	registrate = "registrate"
+)
+
+func JWTAuthentication(jc *JWTMiddlewareConfig, blacklist *Blacklist, tmpls *webtemplate.WebTemplates) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
 			cookies := c.Request().Cookies()
@@ -21,8 +28,8 @@ func JWTAuthentication(jc *JWTMiddlewareConfig, blacklist *Blacklist) echo.Middl
 
 			if tokenGet == "" {
 				appErr := apperrors.JWTMiddleware.AppendMessage("Vars Authorization")
-				//srv.respondRegistrateErr(w, appErr)
-				return c.JSON(appErr.HTTPCode, appErr.Message)
+				log.Error(appErr)
+				return tmpls.Templates[registrate].ExecuteTemplate(c.Response().Writer, registrate, appErr.Message)
 			}
 
 			log.Info(tokenGet)
@@ -30,7 +37,7 @@ func JWTAuthentication(jc *JWTMiddlewareConfig, blacklist *Blacklist) echo.Middl
 			if blacklist.IsTokenBlacklisted(tokenGet) {
 				appErr := apperrors.JWTMiddleware.AppendMessage("Token is blacklisted")
 				log.Error(appErr)
-				return c.JSON(appErr.HTTPCode, appErr.Message)
+				return tmpls.Templates[registrate].ExecuteTemplate(c.Response().Writer, registrate, appErr.Message)
 			}
 
 			token, err := jwt.Parse(tokenGet, func(token *jwt.Token) (interface{}, error) {
@@ -44,22 +51,26 @@ func JWTAuthentication(jc *JWTMiddlewareConfig, blacklist *Blacklist) echo.Middl
 			})
 
 			if err != nil {
-				log.Error(err)
-				appErr := apperrors.JWTMiddleware.AppendMessage("Token is invalidd")
-				return c.JSON(appErr.HTTPCode, appErr.Message)
+				return tmpls.Templates[registrate].ExecuteTemplate(c.Response().Writer, registrate, err)
 			}
 
 			if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
 				role, ok := claims["role"].(string)
 				if !ok {
 					appErr := apperrors.JWTMiddleware.AppendMessage("Role not found in token")
-					return appErr
+					c.Response().Writer.WriteHeader(http.StatusBadRequest)
+					err := json.NewEncoder(c.Response().Writer).Encode(appErr.Message)
+					if err != nil {
+						log.Error(appErr)
+					}
+					//appErr := apperrors.JWTMiddleware.AppendMessage("Role not found in token")
+					//return appErr
 				}
 
 				id, ok := claims["id"].(string)
 				if !ok {
 					appErr := apperrors.JWTMiddleware.AppendMessage("Email not found in token")
-					return appErr
+					return tmpls.Templates[registrate].ExecuteTemplate(c.Response().Writer, registrate, appErr.Message)
 				}
 
 				c.Set("role", role)
@@ -68,7 +79,7 @@ func JWTAuthentication(jc *JWTMiddlewareConfig, blacklist *Blacklist) echo.Middl
 			}
 
 			appErr := apperrors.JWTMiddleware.AppendMessage("The token has expired or is invalid")
-			return c.JSON(appErr.HTTPCode, appErr.Message)
+			return tmpls.Templates[registrate].ExecuteTemplate(c.Response().Writer, registrate, appErr.Message)
 		}
 	}
 }

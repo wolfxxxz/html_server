@@ -101,7 +101,7 @@ func main() {
 	e := echo.New()
 	e.Validator = validator.NewValidator(logger)
 
-	e = router.NewRouter(e, r.NewAppController(), cfg.Server.SecretKey)
+	e = router.NewRouter(e, r.NewAppController(), cfg.Server.SecretKey, tmpls)
 	logger.Infof("Server listen at http://%s:%s", cfg.Server.Host, cfg.Server.AppPort)
 	if err := e.Start(":" + cfg.Server.AppPort); err != nil {
 		logger.Fatalln(err)

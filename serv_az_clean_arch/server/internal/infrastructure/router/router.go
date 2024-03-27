@@ -2,13 +2,14 @@ package router
 
 import (
 	"server/internal/infrastructure/middleware"
+	"server/internal/infrastructure/webtemplate.go"
 	"server/internal/interface/controller"
 
 	"github.com/labstack/echo"
 	echoMiddleware "github.com/labstack/echo/middleware"
 )
 
-func NewRouter(e *echo.Echo, srv controller.AppController, secretKey string) *echo.Echo {
+func NewRouter(e *echo.Echo, srv controller.AppController, secretKey string, tmpls *webtemplate.WebTemplates) *echo.Echo {
 	//e.Use(echoMiddleware.Logger())
 	e.Use(echoMiddleware.Recover())
 	//-------init images ------------------
@@ -32,26 +33,26 @@ func NewRouter(e *echo.Echo, srv controller.AppController, secretKey string) *ec
 	//---------------JWT-------------------------
 	jwtConfig := middleware.JWTMiddlewareConfig{SecretKey: secretKey}
 
-	e.GET("/user-info", srv.HandlerController.GetUserByIdHandler, middleware.JWTAuthentication(&jwtConfig, blackList))
-	e.GET("/user-update", srv.HandlerController.UpdateUserHandler, middleware.JWTAuthentication(&jwtConfig, blackList))
-	e.POST("/user-update", srv.HandlerController.UpdateUserHandler, middleware.JWTAuthentication(&jwtConfig, blackList))
-	e.GET("/user-update-password", srv.HandlerController.UpdateUserPasswordHandler, middleware.JWTAuthentication(&jwtConfig, blackList))
-	e.POST("/user-update-password", srv.HandlerController.UpdateUserPasswordHandler, middleware.JWTAuthentication(&jwtConfig, blackList))
+	e.GET("/user-info", srv.HandlerController.GetUserByIdHandler, middleware.JWTAuthentication(&jwtConfig, blackList, tmpls))
+	e.GET("/user-update", srv.HandlerController.UpdateUserHandler, middleware.JWTAuthentication(&jwtConfig, blackList, tmpls))
+	e.POST("/user-update", srv.HandlerController.UpdateUserHandler, middleware.JWTAuthentication(&jwtConfig, blackList, tmpls))
+	e.GET("/user-update-password", srv.HandlerController.UpdateUserPasswordHandler, middleware.JWTAuthentication(&jwtConfig, blackList, tmpls))
+	e.POST("/user-update-password", srv.HandlerController.UpdateUserPasswordHandler, middleware.JWTAuthentication(&jwtConfig, blackList, tmpls))
 
 	//-------Update LIBRARY-------------------
-	e.GET("/info-users", srv.HandlerController.GetAllUsersHandler, middleware.JWTAuthentication(&jwtConfig, blackList))
-	e.POST("/library-update", srv.HandlerController.UpdateLibraryHandler, middleware.JWTAuthentication(&jwtConfig, blackList))
-	e.GET("/library-update", srv.HandlerController.UpdateLibraryHandler, middleware.JWTAuthentication(&jwtConfig, blackList))
-	e.GET("/library-download", srv.HandlerController.DownloadHandler, middleware.JWTAuthentication(&jwtConfig, blackList))
+	e.GET("/info-users", srv.HandlerController.GetAllUsersHandler, middleware.JWTAuthentication(&jwtConfig, blackList, tmpls))
+	e.POST("/library-update", srv.HandlerController.UpdateLibraryHandler, middleware.JWTAuthentication(&jwtConfig, blackList, tmpls))
+	e.GET("/library-update", srv.HandlerController.UpdateLibraryHandler, middleware.JWTAuthentication(&jwtConfig, blackList, tmpls))
+	e.GET("/library-download", srv.HandlerController.DownloadHandler, middleware.JWTAuthentication(&jwtConfig, blackList, tmpls))
 	//-------TESTS---LEARN--------------------
-	e.POST("/test", srv.HandlerController.TestHandler, middleware.JWTAuthentication(&jwtConfig, blackList))
-	e.GET("/test", srv.HandlerController.TestHandler, middleware.JWTAuthentication(&jwtConfig, blackList))
-	e.POST("/learn", srv.HandlerController.LearnHandler, middleware.JWTAuthentication(&jwtConfig, blackList))
-	e.GET("/learn", srv.HandlerController.LearnHandler, middleware.JWTAuthentication(&jwtConfig, blackList))
+	e.POST("/test", srv.HandlerController.TestHandler, middleware.JWTAuthentication(&jwtConfig, blackList, tmpls))
+	e.GET("/test", srv.HandlerController.TestHandler, middleware.JWTAuthentication(&jwtConfig, blackList, tmpls))
+	e.POST("/learn", srv.HandlerController.LearnHandler, middleware.JWTAuthentication(&jwtConfig, blackList, tmpls))
+	e.GET("/learn", srv.HandlerController.LearnHandler, middleware.JWTAuthentication(&jwtConfig, blackList, tmpls))
 	//-------TESTS--------thematic test----------------------
-	e.POST("/thematic", srv.HandlerController.TestUniversalHandler, middleware.JWTAuthentication(&jwtConfig, blackList))
-	e.GET("/thematic", srv.HandlerController.TestUniversalHandler, middleware.JWTAuthentication(&jwtConfig, blackList))
+	e.POST("/thematic/:theme", srv.HandlerController.TestUniversalHandler, middleware.JWTAuthentication(&jwtConfig, blackList, tmpls))
+	e.GET("/thematic/:theme", srv.HandlerController.TestUniversalHandler, middleware.JWTAuthentication(&jwtConfig, blackList, tmpls))
 	//e.POST("/test-thematic", srv.HandlerController.ThemesHandler, middleware.JWTAuthentication(&jwtConfig, blackList))
-	e.GET("/test-thematic", srv.HandlerController.ThemesHandler, middleware.JWTAuthentication(&jwtConfig, blackList))
+	e.GET("/test-thematic", srv.HandlerController.ThemesHandler, middleware.JWTAuthentication(&jwtConfig, blackList, tmpls))
 	return e
 }

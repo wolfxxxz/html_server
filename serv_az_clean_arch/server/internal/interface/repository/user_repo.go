@@ -250,18 +250,18 @@ func (usr *userRepository) UpdateUserPasswordById(ctx context.Context, userID, n
 }
 
 func (usr *userRepository) GetWordsByIDAndLimit(ctx context.Context, id *uuid.UUID, limit int) ([]*models.Word, error) {
-	var user *models.User
-	err := usr.db.Preload("Words", func(db *gorm.DB) *gorm.DB {
-		return db.Limit(limit)
-	}).Where("id = ?", id).Find(&user).Error
+	var words []*models.Word
+	subQuery := usr.db.Table("user_words").Select("word_id").Where("user_id = ?", id).Limit(limit)
+
+	err := usr.db.Table("words").Where("id IN (?)", subQuery).Find(&words).Error
 	if err != nil {
 		appErr := apperrors.GetWordsByIDAndLimitErr.AppendMessage(err)
 		usr.log.Error(appErr)
 		return nil, appErr
 	}
 
-	usr.log.Info(len(user.Words))
-	return user.Words, nil
+	//usr.log.Info(len(words))
+	return words, nil
 }
 
 func (usr *userRepository) GetWordsByUserIdAndLimitAndTopic(ctx context.Context, id *uuid.UUID, limit int, topic string) ([]*models.Word, error) {

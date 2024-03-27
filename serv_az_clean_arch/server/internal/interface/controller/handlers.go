@@ -132,13 +132,15 @@ func (srv *handleController) respondErr(w http.ResponseWriter, appErr *apperrors
 	}
 }
 
-func (srv *handleController) respondRegistrateErr(w http.ResponseWriter, appErr *apperrors.AppError) {
-	err := srv.tmpls.Templates[registrate].ExecuteTemplate(w, registrate, appErr)
-	if err != nil {
-		appErr := apperrors.RespondErr.AppendMessage(err)
-		srv.log.Error(appErr)
+/*
+	func (srv *handleController) respondRegistrateErr(w http.ResponseWriter, appErr *apperrors.AppError) {
+		err := srv.tmpls.Templates[registrate].ExecuteTemplate(w, registrate, appErr)
+		if err != nil {
+			appErr := apperrors.RespondErr.AppendMessage(err)
+			srv.log.Error(appErr)
+		}
 	}
-}
+*/
 
 func (srv *handleController) respondAuthorizateErr(w http.ResponseWriter, appErr *apperrors.AppError) {
 	err := srv.tmpls.Templates[registrate].ExecuteTemplate(w, registrate, appErr)
@@ -315,7 +317,6 @@ func (srv *handleController) GetUserByIdHandler(c echo.Context) error {
 }
 
 func (srv *handleController) RestoreUserPasswordHandler(c echo.Context) error {
-
 	if c.Request().Method == http.MethodGet {
 		err := srv.tmpls.Templates[restoreUserPassword].ExecuteTemplate(c.Response().Writer, restoreUserPassword, nil)
 		if err != nil {
@@ -453,8 +454,6 @@ func (srv *handleController) UpdateUserPasswordHandler(c echo.Context) error {
 
 }
 
-// -------------------------doesn't work---------------------------
-
 // ----------------tests------------------------
 func (srv *handleController) TestHandler(c echo.Context) error {
 	userID, _, ok := srv.getIdANdRoleFromRequest(c)
@@ -465,9 +464,8 @@ func (srv *handleController) TestHandler(c echo.Context) error {
 		return nil
 	}
 
-	getWordsByUsIdAndLimitRequest := &requests.GetWordsByUsIdAndLimitRequest{ID: userID, Limit: "5"}
-
 	if c.Request().Method == http.MethodGet {
+		getWordsByUsIdAndLimitRequest := &requests.GetWordsByUsIdAndLimitRequest{ID: userID, Limit: "5"}
 		words, err := srv.userInteractor.GetWordsByUsIdAndLimit(c.Request().Context(), getWordsByUsIdAndLimitRequest)
 		if err != nil {
 			appErr := err.(*apperrors.AppError)
@@ -626,6 +624,7 @@ func (srv *handleController) ThemesHandler(c echo.Context) error {
 	return nil
 }
 
+// ---------------------DOESN'T WORK------------------
 func (srv *handleController) TestUniversalHandler(c echo.Context) error {
 	userID, _, ok := srv.getIdANdRoleFromRequest(c)
 	if !ok {
@@ -639,7 +638,6 @@ func (srv *handleController) TestUniversalHandler(c echo.Context) error {
 	//vars := mux.Vars(c.Request())
 	topic := c.Param("theme")
 	topicGet := strings.ReplaceAll(topic, "_", " ")
-	//-------------------------------------------------------------------------------------------------------------------------
 	if c.Request().Method == http.MethodGet {
 		words, err := srv.userInteractor.GetWordsByUserIdAndLimitAndTopic(c.Request().Context(), getWordsByUsIdAndLimitRequest, topicGet)
 		if err != nil {
@@ -657,7 +655,6 @@ func (srv *handleController) TestUniversalHandler(c echo.Context) error {
 		}
 
 		comparer.HashTableWords[userID] = pageData
-
 		err = srv.tmpls.Templates[testThematicHandler].ExecuteTemplate(c.Response().Writer, testThematicHandler, pageData)
 		if err != nil {
 			appErr := apperrors.TestUniversalHandlerErr.AppendMessage(err)
